@@ -1,0 +1,427 @@
+define(['text!electClass/electTurn/electTurnExplanation.jsp','electClass/config','css!electClass/electTurn/electTurnExplanation.css', 'map'], function (html,config) {
+    var _$this;
+    var lessonTaskMap = new Map();
+    var _url = '';
+    var _params;
+    var _electTurn;
+    var _electedCredit = new Map();
+    var _studiedCredit = new Map();
+    var _studiedLessonTask = new Map();
+    var _electTurnResult = new Map();
+    var _courseTypeCredit = [];
+    var _termCredit = [];
+    var _buttonClass = '';
+    var _severTime = null;
+    var _nowTime = null;
+
+    /**
+     * 渲染课程类型学分设置约束
+     * @returns {*|jQuery|HTMLElement}
+     */
+    var rendererCourseTypeCredit = function () {
+        var $ul = $('<ul class="elect-turn-elect-result-statistic list-unstyled" style="margin-left:15px;"></ul>');
+        $ul.append('<li style="margin-left: 20px;"><p style="font-weight:800;">'+Help.get_i18n('Course Type Credit Restrain')+'</p></li>');
+        for(var i=0;i<_courseTypeCredit.length;i++){
+            var courseTypeCreditModel = _courseTypeCredit[i];
+            var courseTypes = courseTypeCreditModel.courseTypeId.split(',');
+            var currentCourseTypeCredit = 0;
+            for(var c=0;c<courseTypes.length;c++){
+                var electedCredit = _electedCredit.containsKey(courseTypes[c])?_electedCredit.get(courseTypes[c]):0;
+                var studiedCredit = _studiedCredit.containsKey(courseTypes[c])?_studiedCredit.get(courseTypes[c]):0;
+                currentCourseTypeCredit+= parseFloat(electedCredit)+parseFloat(studiedCredit);
+            }
+
+            var courseTypeMinCredit = courseTypeCreditModel.minCredit;
+            var courseTypeMaxCredit = courseTypeCreditModel.maxCredit;
+
+            var $li = $('<li style="margin-left: 40px;margin-bottom: 10px;" coursetypecreditid="'+courseTypeCreditModel.courseTypeCreditId+'">' +
+                '<span class="course-type-name"><label>'+(window.lang == "zh_CN"?courseTypeCreditModel.courseTypeName:courseTypeCreditModel.courseTypeNameEn)+'</label></span>' +
+                '<span class="validate-result pull-right"></span></span></li>');
+
+                var $child_ul = $('<ul class="list-unstyled" style="margin-left: 20px;margin-top: -5px;">' +
+                    '<li><span style="margin-right: 20px;">'+Help.get_i18n('Max Credit')+':</span>' + (courseTypeMaxCredit==0|| courseTypeMaxCredit=="" ?Help.get_i18n('Unlimited'):(courseTypeMaxCredit+ Help.get_i18n('Credit')))+'</li>' +
+                    '<li><span style="margin-right: 20px;">'+Help.get_i18n('Min Credit')+':</span>' + (courseTypeMinCredit==0|| courseTypeMinCredit=="" ?Help.get_i18n('Unlimited'):(courseTypeMinCredit+ Help.get_i18n('Credit')))+'</li>' +
+                    '</ul>');
+            $li.append($child_ul);
+
+            _$this.find('.cart-page').find('.cart-statistic').append($li);
+            $ul.append($li);
+        }
+        if(_courseTypeCredit.length == 0){
+            $ul.append($('<li style="margin-left: 40px;margin-bottom: 10px;">'+Help.get_i18n('No configuration information about course type')+'</li>'))
+        }
+        return $ul;
+    };
+    /**
+     * 渲染学期学分设置约束
+     * @returns {*|jQuery|HTMLElement}
+     */
+    var rendererTermCredit = function () {
+        var $ul = $('<ul class="elect-turn-elect-result-statistic list-unstyled" style="margin-left:15px;margin-top: 20px;"></ul>');
+        $ul.append('<li style="margin-left: 20px;"><p style="font-weight:800;">'+Help.get_i18n('Term Credit Restrain')+'</p></li>');
+        for(var i=0;i<_termCredit.length;i++){
+            var termCreditModel = _termCredit[i];
+
+            var minCredit = termCreditModel.minCredit;
+            var maxCredit = termCreditModel.maxCredit;
+
+            var $li = $('<li style="margin-left: 40px;margin-bottom: 10px;" coursetypecreditid="'+termCreditModel.termStudentCreditId+'">' +
+                '<span class="course-type-name"><label>'+termCreditModel.termName+'</label></span>' +
+                '<span class="validate-result pull-right"></span></span></li>');
+
+            var $child_ul = $('<ul class="list-unstyled" style="margin-left: 20px;margin-top: -5px;">' +
+                '<li><span style="margin-right: 20px;">'+Help.get_i18n('Max Credit')+':</span>' + (maxCredit==0|| maxCredit=="" ?Help.get_i18n('Unlimited'):(maxCredit+ Help.get_i18n('Credit')))+'</li>' +
+                '<li><span style="margin-right: 20px;">'+Help.get_i18n('Min Credit')+':</span>' + (minCredit==0|| minCredit=="" ?Help.get_i18n('Unlimited'):(minCredit+ Help.get_i18n('Credit')))+'</li>' +
+                '</ul>');
+            $li.append($child_ul);
+            $ul.append($li);
+        }
+        return $ul;
+    };
+    /**
+     * 加载选课约束规则
+     */
+    var loadElectClassSettings = function () {
+        $.ajax({
+            url: 'tpm/findLessonTasks_ElectTurn.action',
+            async:false,
+            data: {
+                jsonString: JSON.stringify({
+                    electTurnId: _params.electTurnId,
+                    loadCourseType: true,
+                    loadCourseTypeCredit: true,
+                    loadElectTurnResult: true,
+                    loadStudentLessonTask: true,
+                    loadTermCredit:true
+                })
+            },
+            dataType: 'json',
+            success: function (result) {
+                initStudiedLessonTask(result.data.studentLessonTask);
+                initStudiedCredit(result.data.studiedCredit);
+                initElectTurnResult(result.data.electTurnResult);
+                _courseTypeCredit = result.data.courseTypeCredit;
+                _termCredit = result.data.termCredit;
+            }
+        });
+    };
+
+    var initElectTurnResult = function (datas) {
+        for (var i = 0; i < datas.length; i++) {
+            var data = datas[i];
+            _electTurnResult.put(data.lessonTaskId, data);
+            var courseTypeId = data.courseTypeId;
+            if (!_studiedLessonTask.containsKey(data.lessonTaskId)) {
+                if ('1' == _electTurnResult.get(data.lessonTaskId).electStatus|| '2' == _electTurnResult.get(data.lessonTaskId).electStatus) {
+                    var currentCredit = 0;
+                    if (_electedCredit.containsKey(courseTypeId)) {
+                        currentCredit = _electedCredit.get(courseTypeId);
+                    }
+                    currentCredit += data.credit;
+                    _electedCredit.put(courseTypeId, currentCredit);
+                }
+            }
+        }
+    };
+    var initStudiedCredit = function (datas) {
+        for (var i = 0; i < datas.length; i++) {
+            var data = datas[i];
+            _studiedCredit.put(data.courseTypeId, data.studiedCredit);
+        }
+    };
+    var initStudiedLessonTask = function (datas) {
+        for (var i = 0; i < datas.length; i++) {
+            var data = datas[i];
+            _studiedLessonTask.put(data, data);
+        }
+    };
+
+    var loadElectResult = function (electTurnId) {
+        _$this.find('div.elect-turn-detail-bottom').loading('1x');
+        Request.get({
+            url: 'tpm/findElectResult_ElectTurn.action',
+            data: {
+                jsonString: JSON.stringify({
+                    electTurnId: electTurnId
+                })
+            },
+            callback: function (datas) {
+                _$this.find('div.elect-turn-page-detail-bottom').loaded();
+                var totalCredit = 0;
+                for (var i = 0; i < datas.length; i++) {
+                    var item = datas[i];
+                    totalCredit += item.credit == "" ? 0 : parseFloat(item.credit);
+                }
+                _$this.find('div.elect-turn-detail-bottom').html(Help.get_i18n('ElectTurn_FrontStatistic').formatmodel({
+                    credit: totalCredit + '',
+                    course: datas.length + ''
+                }));
+
+            }
+        });
+    };
+    /**
+     * 查询学生当前选课状态
+     * @param $div
+     */
+    var loadStudentStatus = function ($div) {
+        $div.empty();
+        $div.loading('2x');
+        Request.get({
+            url: 'tpm/findStudentStatus_ElectTurn.action',
+            callback: function (result) {
+                $div.loaded();
+                var studentStatus = result.studentStatus;
+                if ("forbidden" == studentStatus) {
+                    _buttonClass = 'elect-class-status-forbidden';
+                    $div.addClass('elect-class-status-forbidden').html(Help.get_i18n('Forbidden'));
+                    _$this.find('.elect-turn-page-detail').find('.elect-turn-detail-item-bottom').hide();
+                } else if ("warning" == studentStatus) {
+                    _buttonClass = 'elect-class-status-warning';
+                    $div.html(Help.get_i18n('Warning'));
+                    $div.al_popover({
+                        placement: 'bottom',
+                        container: 'body',
+                        trigger: 'hover',
+                        html: true,
+                        content:function(){
+                            var $div = $('<div"></div>');
+                            $div.html(Help.get_i18n('Your choice of credit has not yet met the requirements, please continue to course!'));
+                            return $div;
+                        }
+                    });
+                } else {
+                    _buttonClass = 'elect-class-status-normal';
+                    $div.html(Help.get_i18n('Elect Class Go'));
+                }
+            }
+        });
+    };
+
+    var renderStaticTurnText = function (electTurn) {
+        var mode = '';
+        if (electTurn.electMode === 'DROP') {
+            mode = '<span class="label label-warning" style="padding: .2em .6em;">' + electTurn.electModeName + '</span>';
+            _url = 'electClass/dropMode/dropMode?electTurnId=' + electTurn.electTurnId;
+        } else if (electTurn.electMode === 'TIME') {
+            mode = '<span class="label label-danger" style="padding: .2em .6em;">' + electTurn.electModeName + '</span>';
+            _url = 'electClass/dropMode/dropMode?electTurnId=' + electTurn.electTurnId;
+        } else if (electTurn.electMode === 'POINT') {
+            mode = '<span class="label label-primary" style="padding: .2em .6em;">' + electTurn.electModeName + '</span>';
+            _url = 'electClass/pointMode/pointMode?electTurnId=' + electTurn.electTurnId;
+        } else if (electTurn.electMode === 'MASSELECTION') {
+            mode = '<span class="label label-info" style="padding: .2em .6em;">' + electTurn.electModeName + '</span>';
+            _url = 'electClass/massElectionMode/massElectionMode?electTurnId=' + electTurn.electTurnId;
+        }
+        _$this.find('.elect-turn-user-name').html(Help.get_i18n('ElectTurn_DearUserName').formatmodel({
+            userName: __Session.userName
+        }) + ':');
+        _$this.find('.elect-turn-page-detail').find('.elect-turn-mode').html(mode);
+        _$this.find('.elect-turn-page-detail').find('.elect-turn-name').html(electTurn.electTurnName);
+        _$this.find('.elect-turn-explanation').html(Help.get_i18n('ElectTurn_Explanation').formatmodel({
+            electTurnName: electTurn.electTurnName,
+            time: electTurn.beginTime + ' ~ ' + electTurn.endTime,
+            electClassMode: electTurn.electModeName
+        }));
+        _$this.find('.elect-turn-page-detail').find('.elect-turn-memo').html(electTurn.memo);
+    }
+
+    /**
+     * 查询轮次详细信息
+     */
+    var loadElectTurnDetail = function () {
+        // 获取从前一个页面传过啦的轮次信息
+        var electTurn = _params;
+        _electTurn = electTurn;
+        renderStaticTurnText(electTurn);
+
+        _$this.find('.elect-turn-page-detail').find('.elect-turn-rule').empty();
+        if (getKeyElement('showElectTurnRule') && electTurn.modeSetting.length > 0) {
+            _$this.find('.elect-turn-page-detail').find('.elect-turn-rule').append('<span>' + Help.get_i18n('The current round of selection rules are as follows:') + '</span>');
+            var modeSetting = JSON.parse(electTurn.modeSetting);
+            if (modeSetting && modeSetting.length > 0) {
+                var $ul = $('<ul class="list-unstyled" style="margin-left:-20px;"></ul>');
+                for (var j = 0; j < modeSetting.length; j++) {
+                    var item = modeSetting[j];
+                    $ul.append('<li> <div class="checkbox"><label>' +
+                        '<span class="' + (item.value ? 'text-success' : 'text-warning') + '">' +
+                        (item.value ? "<i class='fa fa-check'></i>" : "<i class='fa fa-close'></i>") +
+                        '</span> ' + Help.get_i18n(item.text) +
+                        ' </label></div></li>');
+                }
+                _$this.find('.elect-turn-page-detail').find('.elect-turn-rule').append($ul);
+            } else {
+                _$this.find('.modeSetting').hide();
+            }
+        }
+        _nowTime = _nowTime.substr(0, 16);
+        if (electTurn.beginTime <= _nowTime) {
+            loadStudentStatus(_$this.find('.elect-turn-page-detail').find('.elect-turn-detail-next'));
+            _$this.find('.elect-turn-page-detail').find('.elect-turn-detail-item-bottom').show();
+        } else {
+            _$this.find('.elect-turn-page-detail').find('.elect-turn-detail-next').html(Help.get_i18n('Elect Class Go'));
+            _$this.find('.elect-turn-page-detail').find('.elect-turn-detail-item-bottom').hide();
+        }
+        _$this.find('.elect-turn-page-detail').find('.elect-turn-detail-next').data(electTurn);
+        _$this.find('.elect-turn-page-detail').find('.elect-turn-detail-course').data(electTurn);
+
+        loadElectResult(electTurn.electTurnId);
+        _$this.find('.elect-turn-mode-help').off('click').on('click', {
+            electClassModeName: electTurn.electModeName,
+            electClassModeId: electTurn.electMode
+        }, function (e) {
+            e = e || window.event;
+            $.al_modal({
+                size: 'modal-lg',
+                title: e.data.electClassModeName,
+                autoHide: true,
+                btnCancelText: Help.get_i18n('Close'),
+                showBtnCancel: true,
+                showBtnConfirm: false,
+                content: function ($modal) {
+                    $modal.find('.modal-body').load('front/app/electClassManager/electClassModeDetail.jsp?electClassModeId=' + e.data.electClassModeId);
+                }
+            });
+        });
+    };
+    var openElectClassRules = function () {
+        $.al_modal({
+            size: 'modal-xs',
+            title: Help.get_i18n('Credit Requirement'),
+            autoHide: false,
+            btnCancelText: Help.get_i18n('Close'),
+            showBtnCancel: true,
+            showBtnConfirm: false,
+            content: function ($modal) {
+                $modal.find('.modal-body').append('<p style="font-size: 14px;margin-left: 15px;font-weight: 700;">'+Help.get_i18n('The current round selection rules and your course credits as follows')+':</p>');
+
+                if(getKeyElement('courseTypeCreditRestrain')){
+                    $modal.find('.modal-body').append(rendererCourseTypeCredit());
+                }
+                if(getKeyElement('termCreditRestrain')){
+                    $modal.find('.modal-body').append(rendererTermCredit());
+                }
+            }
+        });
+    };
+    var loadServerTime = function () {
+        Request.ajax({
+            url:'sys/systemTime_Help.action',
+            async:false,
+            success:function (result) {
+                if(result.success){
+                    _severTime = new Date(result.data);
+                    _nowTime = result.data;
+                    _$this.find('.elect-turn-detail-top > .server-time').html(result.data);
+                }
+            }
+        });
+        setInterval(function() {
+            var newTime = new Date(_severTime.getTime() + 1000);
+            _$this.find('.elect-turn-detail-top > .server-time').html(DateUtil.formatDateTime(newTime));
+            _severTime = newTime;
+        },1000);
+    };
+    var initEvent = function () {
+        lessonTaskMap = new Map();
+        _electedCredit.clear();
+        _studiedCredit.clear();
+        _studiedLessonTask.clear();
+        _electTurnResult.clear();
+        _courseTypeCredit = [];
+        _termCredit = [];
+        _buttonClass = '';
+        _severTime = null;
+        _nowTime = null;
+
+        loadServerTime();
+        _$this.find('div.elect-turn-page-detail').css('height', __ModuleHeight() - 16 + 'px');
+        _$this.find('div.elect-turn-detail-left').css('height', __ModuleHeight() + 'px');
+        _$this.find('div.elect-turn-detail-right').css('height', __ModuleHeight() + 'px');
+
+        _url = '';
+        _$this.find('.elect-turn-detail-back').on('click', function () {
+            __DestroyModule();
+            __DestroyModule('ElectClassOnline');
+            __ActiveModule('ElectClassOnline', Help.get_i18n('Elect Class'), 'electClass/electTurn/electTurn', true);
+        });
+
+        _$this.find('.elect-turn-detail-next').on('click', function () {
+            if ($(this).attr('disabled') !== 'disabled') {
+                if (_electTurn) {
+                    var electTurnName = _electTurn.electTurnName;
+                    $(this).al_popover('destroy');
+                    __DestroyModule();
+                    __ActiveModule('ElectTurnLessonTask', electTurnName, _url, true);
+                }
+            }
+        });
+        _$this.find('.elect-turn-detail-course').on('click', function () {
+            var electTurnName = _electTurn.electTurnName;
+            var url = _url + "&isReadonly=true";
+            __ActiveModule('ElectTurnLessonTask', electTurnName, url, true);
+        });
+
+        _$this.find('.elect-turn-detail-requirement').al_popover({
+            placement: 'bottom',
+            container: 'body',
+            trigger: 'hover',
+            html: true,
+            content:function(){
+                var $div = $('<div"></div>');
+                $div.html(Help.get_i18n('Credit Requirement'));
+                return $div;
+            }
+        });
+        _$this.find('.elect-turn-detail-course').al_popover({
+            placement: 'bottom',
+            container: 'body',
+            trigger: 'hover',
+            html: true,
+            content:function(){
+                var $div = $('<div"></div>');
+                $div.html(Help.get_i18n('Preview the course in the round'));
+                return $div;
+            }
+        });
+
+        _$this.find('.elect-turn-detail-requirement').on('click', function () {
+            loadElectClassSettings();
+            openElectClassRules();
+        });
+        _$this.find('.jumpToResult').on('click', function () {
+            __ActiveModule('StudentElectResult', Help.get_i18n('Elect Class Result'), 'electClass/electClassResult', true);
+        });
+
+        _$this.find('#agree-elect-turn-rule').off('change').on('change',function () {
+            var checked = this.checked;
+            if(checked){
+                _$this.find('.elect-turn-page-detail').find('.elect-turn-detail-next').removeClass('elect-class-status-not-open').addClass(_buttonClass).attr('disabled', false);
+            }else{
+                _$this.find('.elect-turn-page-detail').find('.elect-turn-detail-next').removeClass(_buttonClass).addClass('elect-class-status-not-open').attr('disabled', true);
+            }
+        });
+    };
+    /**
+     * 获取配置文件是否有信息需要显示
+     * @param keyElment
+     */
+    var getKeyElement = function (keyElement) {
+        if(config.keyElements.hasOwnProperty(keyElement) && config.keyElements[keyElement] == true){
+            return true;
+        }
+        return false;
+    };
+
+    return {
+        view: function () {
+            return html;
+        },
+        init: function ($this, params) {
+            _params = params;
+            _$this = $this;
+            initEvent();
+            loadElectTurnDetail();
+        }
+    };
+});

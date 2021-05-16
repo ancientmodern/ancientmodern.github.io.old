@@ -1,0 +1,28 @@
+define([],function(){
+    /**
+     子项目根据需求配置隐藏字段
+     **/
+    /**
+     展示列表的隐藏配置：
+     var _hiddenGridColumns = {
+                lessonTask:['dollarsCoefficient','scoreLine','weekHour','lessonType','weeks']
+            };
+     数组中的元素为：dataIndex
+     **/
+    var _keyElements = {
+        courseCode:true,
+        courseType:false,
+        language:false,
+        termCreditRestrain:true,    
+        termMinCreditRestrain:true, //退课时是否验证最低学分
+        courseTypeCreditRestrain:true,
+        showElectTurnRule:true,
+        showCheckCreditTip:true,
+        showRequirement:true,
+        showLessonClassShortName:false,
+        showHour:false
+    };
+    return {
+        keyElements:_keyElements
+    }
+});

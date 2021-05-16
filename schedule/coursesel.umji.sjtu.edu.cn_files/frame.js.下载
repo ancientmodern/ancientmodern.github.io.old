@@ -1,0 +1,1398 @@
+define(["text!frame/frame.jsp", 'frame/framePlugin','recorder/recorder', 'css!frame/frame.css',
+        "jquery.metisMenu", 'jquery.slimScroll',"jquery.ui",'jquery.hideseek'],function(html, framePlugin, recorder){
+
+    var _$container;
+    var _$this;
+    var _menuPermission = null;
+    var _urlMenuId = {};
+    var _browser;
+    var _portalModuleId = null;
+    var default_ = {
+        url: '',
+        reload: true,
+        iFrame: false,
+        callback: '',
+        showRefresh: false,
+        showClose: true
+    };
+
+    /**
+     * 检查更新密码时间
+     */
+    var remainUpdatePwd = function () {
+        if (!(__Parameter['checkupdatepwd'.toLocaleLowerCase()] == 0 || __Session.userType == 5)) {
+            Request.get({
+                url: 'sys/remainUpdatePwd_User.action',
+                callback: function (result) {
+                    if (result.success && result.data == 'true') {
+                        $.tip.warning(Help.get_i18n('Hello,{userName}. For account security, suggest you update your personal password immediately.').formatModel({
+                            userName: __Session.userName
+                        }), 'bottom-right', 10000);
+                    }
+                }
+            });
+        }
+    };
+
+    var initPage = function(){
+
+        $('#header-logo').animate({marginLeft:0});        //logo飞入
+
+$('#languageSwitch').off('click').on('click',function () {
+            window.localStorage.removeItem('global-version');
+window.location.href= "sys/languageSwitch.action";        
+});
+
+        if (__Session.language == 'en_US'){
+            $('#languageSwitch').html('中');
+            $('#languageSwitch').al_popover({
+                placement: 'bottom',
+                container: '.navbar-right',
+                trigger: 'hover',
+                html: true,
+                content: function () {
+                    var $div = $('<div>切换成中文</div>');
+                    return $div;
+                }
+            });
+        } else {
+            $('#languageSwitch').al_popover({
+                placement: 'bottom',
+                container: '.navbar-right',
+                trigger: 'hover',
+                html: true,
+                content: function () {
+                    var $div = $('<div>Switch into English</div>');
+                    return $div;
+                }
+            });
+        }
+
+        if (__Session.pagePermission == "2"){
+            $('#header-user .dropdown-menu').prepend('<li><a href="sys/appSwitch.action"><i class="fa fa-cogs"></i>'+Help.get_i18n('Management')+'</a></li>');
+        }
+
+
+        $('#me-menu a.logout').click(function(e){
+            logout();
+        });
+
+        $('#btnTopSchedule').click(function(){
+            activeModule({
+                menuId: 'Common-Schedule',
+                caption: Help.get_i18n('Schedule'),
+                url: 'calendar/calendar',
+                reload: false
+            });
+        });
+        $('#btnTopSchedule').al_popover({
+            placement: 'bottom',
+            container: '.navbar-right',
+            trigger: 'hover',
+            html: true,
+            content: function () {
+                var $div = $('<div>' + Help.get_i18n('Schedule') + '</div>');
+                return $div;
+            }
+        });
+
+
+        $('#btnTopMessage').click(function(){
+            activeModule({
+                menuId: 'Common_Message',
+                caption: Help.get_i18n('Message'),
+                url: 'message/message',
+                reload: false
+            });
+        });
+        $('#btnTopMessage').al_popover({
+            placement: 'bottom',
+            container: '.navbar-right',
+            trigger: 'hover',
+            html: true,
+            content: function () {
+                var $div = $('<div>' + Help.get_i18n('Message') + '</div>');
+                return $div;
+            }
+        });
+
+
+        $('#btnPlatformApp').click(function () {
+            activeModule({
+                menuId: 'System_UserPlatformApp',
+                caption: Help.get_i18n('My Application'),
+                url: 'userPlatformApp/userPlatformApp',
+                reload: true
+            });
+        });
+        $('#btnPlatformApp').al_popover({
+            placement: 'bottom',
+            container: '.navbar-right',
+            trigger: 'hover',
+            html: true,
+            content: function () {
+                var $div = $('<div">' + Help.get_i18n('My Application') + '</div>');
+                return $div;
+            }
+        });
+
+
+        $('#btnPortal').click(function () {
+            // window.location.href = "/portal/index.jsp";
+        });
+        $('#btnPortal').al_popover({
+            placement: 'bottom',
+            container: '.navbar-right',
+            trigger: 'hover',
+            html: true,
+            content: function () {
+                var $div = $('<div>' + Help.get_i18n('Application Portal') + '</div>');
+                return $div;
+            }
+        });
+
+
+        $('#btnHome').click(function () {
+            loadHome();
+        });
+        $('#btnHome').al_popover({
+            placement: 'bottom',
+            container: '.navbar-right',
+            trigger: 'hover',
+            html: true,
+            content: function () {
+                var $div = $('<div>' + Help.get_i18n('System_Home') + '</div>');
+                return $div;
+            }
+        });
+
+        /*var authData = Help.authMenu(['System_UserPlatformApp','System_Home','System_Favorites',
+                        'System_Portal','System_ModifyPassword','System_CloudDisk',
+                        'System_DownloadApp','System_PrivateMsg','System_TopMessage',
+                        'Common_Schedule','System_TopLanguageSwitch']);
+        if (!authData['System_UserPlatformApp']) {
+            $('#btnPlatformApp').remove();
+        }
+        if (!authData['System_Home']) {
+            $('#btnHome').remove();
+        }
+        if (!authData['System_Favorites']) {
+            $('#btnFavorites').remove();
+        }
+        if (!authData['System_Portal']) {
+            $('#btnPortal').remove();
+        }
+        if (!authData['System_ModifyPassword']) {
+            $('#modifyPassword').parent('li').remove();
+        }
+        if (!authData['System_CloudDisk']) {
+            $('#cloudDisk').parent('li').remove();
+        }
+        if (!authData['System_DownloadApp']) {
+            $('#downloadApp').parent('li').remove();
+        }
+        if (!authData['System_PrivateMsg']) {
+            $('#privateMsg').parent('li').remove();
+        }
+        if (!authData['System_TopMessage']) {
+            $('#btnTopMessage').parent('li').remove();
+        }
+        if (!authData['Common_Schedule']) {
+            $('#btnTopSchedule').parent('li').remove();
+        }
+        if (!authData['System_TopLanguageSwitch']) {
+            $('#languageSwitch').parent('li').remove();
+        }*/
+    };
+
+    var authTopMenu = function (authData) {
+        if (!authData['System_UserPlatformApp']) {
+            $('#btnPlatformApp').remove();
+        }
+        if (!authData['System_Home']) {
+            $('#btnHome').remove();
+        }
+        if (!authData['System_Favorites']) {
+            $('#btnFavorites').remove();
+        }
+        if (!authData['System_Portal']) {
+            $('#btnPortal').remove();
+        }
+        if (!authData['System_ModifyPassword']) {
+            $('#modifyPassword').parent('li').remove();
+        }
+        if (!authData['System_CloudDisk']) {
+            $('#cloudDisk').parent('li').remove();
+        }
+        if (!authData['System_DownloadApp']) {
+            $('#downloadApp').parent('li').remove();
+        }
+        if (!authData['System_PrivateMsg']) {
+            $('#privateMsg').parent('li').remove();
+        }
+        if (!authData['System_TopMessage']) {
+            $('#btnTopMessage').parent('li').remove();
+        }
+        if (!authData['Common_Schedule']) {
+            $('#btnTopSchedule').parent('li').remove();
+        }
+        if (!authData['System_TopLanguageSwitch']) {
+            $('#languageSwitch').parent('li').remove();
+        }
+    }
+
+    var fillFavorites = function(datas){
+        var $ul = $('<ul class="list-inline"></ul>');
+        for (var d = 0; d < datas.length; d++) {
+            var data = datas[d];
+            var $li = $('<li><i class="fa fa-cog fa-fw"></i>&nbsp;' + data['favoritesName'] + '</li>');
+            $li.data(data);
+            $li.on('click', function () {
+                var data = $(this).data();
+                var config = {};
+                config['menuId'] = data['menuId'];
+                config['caption'] = data['favoritesName'];
+                config['url'] = data['favoritesUrl'];
+                config['reload'] = true;
+                config['favorites'] = true;
+                activeModule(config);
+            });
+            $ul.append($li);
+        };
+
+        $('#btnFavorites').al_popover({
+            title: function () {
+                var $title = $('<p style="margin-bottom: 0;">' + Help.get_i18n('Favorites') + '(' + datas.length + ')</p>');
+                var $a = $('<a class="pull-right" style="text-decoration: underline;" href="javascript:void(0);">' + Help.get_i18n('Favorites_View all favorites') + '</a>');
+                $a.on('click', function () {
+                    var config = {};
+                    config['menuId'] = 'System_Favorites';
+                    config['caption'] = Help.get_i18n('Favorites');
+                    config['url'] = 'favorites/favorites';
+                    config['reload'] = true;
+                    config['favorites'] = false;
+                    __ActiveModule(config);
+                });
+                $title.append($a);
+                return $title;
+            },
+            placement: 'bottom',
+            container: '.navbar-right',
+            trigger: 'focus',
+            html: true,
+            content: function () {
+                var $div = $('<div style="width: 400px;height:300px;"></div>');
+                $div.append($ul);
+                return $div;
+            }
+        });
+    }
+
+    var initTab = function(){
+        $('.nav-left-bar-backward').click(function(e){  //向前滚动
+            backwardTab();
+        });
+        $('.nav-right-bar-forward').click(function(e){  //向后滚动
+            forwardTab();
+        });
+    }
+
+    var forwardTab = function($activeTab){
+        var step=75;
+        var marginLeft = parseInt( $('.nav-center-bar').css('margin-left') );
+        var centerBarLength = parseInt( $('.module-nav').css('width') )
+            - parseInt( $('.nav-left-bar').css('width') )
+            - parseInt( $('.nav-right-bar').css('width') );
+        if ($activeTab){
+            var tabPrevsLength=0;
+            var $tabPrevs = $activeTab.parent().prevAll('li');
+            for(var i=0; i<$tabPrevs.length; i++){
+                tabPrevsLength += parseInt( $($tabPrevs[i]).css('width') );
+            }
+            var tabsLength = tabPrevsLength + parseInt( $activeTab.parent().css('width') );
+            if ( Math.abs(marginLeft) + centerBarLength < tabsLength  ){
+                var newMarginLeft = marginLeft;
+                while ( tabPrevsLength + parseInt($activeTab.parent().css('width')) - Math.abs(newMarginLeft) > centerBarLength ){
+                    newMarginLeft -= step;
+                }
+                $('.nav-center-bar').css('margin-left', newMarginLeft+"px" );
+            }
+        }else{
+            var tabsLength=0;
+            var $tabs = $('.navbar-tab-title li');
+            for(var i=0; i<$tabs.length; i++){
+                tabsLength += parseInt( $($tabs[i]).css('width') );
+            }
+            if ( ( Math.abs(marginLeft) + centerBarLength ) < tabsLength ){
+                marginLeft = marginLeft - step;
+                $('.nav-center-bar').css("margin-left", marginLeft+"px");
+            }
+        }
+    }
+
+    var backwardTab = function($activeTab){
+        var step=75;
+        var marginLeft = parseInt( $('.nav-center-bar').css('margin-left') );
+        if ($activeTab){
+            var tabPrevsLength=0;
+            var $tabPrevs = $activeTab.parent().prevAll('li');
+            for(var i=0; i<$tabPrevs.length; i++){
+                tabPrevsLength += parseInt( $($tabPrevs[i]).css('width') );
+            }
+            if (tabPrevsLength < Math.abs(marginLeft)){
+                var newMarginLeft = marginLeft;
+                while ( tabPrevsLength < Math.abs(newMarginLeft) ){
+                    newMarginLeft += step;
+                }
+                $('.nav-center-bar').css('margin-left', ( (newMarginLeft>0)? 0 : newMarginLeft)+"px" );
+            }
+        }else{
+            if (marginLeft<0){
+                marginLeft = marginLeft + step;
+                $('.nav-center-bar').css("margin-left", marginLeft+"px");
+            }
+        }
+    }
+
+    var showTab = function ($tabExistsOrMenuId) {  //再次显示已经加载的Tab及其page
+
+        var $tabExists = $tabExistsOrMenuId;
+        if (typeof $tabExistsOrMenuId === 'string') {
+            $tabExists = $('.navbar-tab-title a[data-moduletab="' + menuId + '"]');
+        }
+
+        //显示tab
+        backwardTab($tabExists);
+        forwardTab($tabExists);
+
+        $tabExists.trigger('click');
+    };
+
+    var addFavorites = function ($favorites) {
+        var config = $favorites.parent('a').data('config');
+        var data = {
+            menuId: config.menuId,
+            favoritesUrl: config.url,
+            favoritesName: config.caption,
+            userId: __Session.userId
+        };
+        Request.ajax({
+            url: "sys/add_PlatformAppFavorites.action",
+            type: "POST",
+            data: {jsonString: JSON.stringify(data)},
+            dataType: 'json',
+            success: function (result) {
+                $.tip.success(Help.get_i18n('Added to Favorites success!'), 'top-center');
+                $favorites.data('platformAppFavoritesId', result.data['platformAppFavoritesId']);
+                $favorites.removeClass('fa-star-o module-empty-favorites').addClass('fa-star module-favorites');
+                $favorites.al_popover('destroy');
+                $favorites.al_popover({
+                    placement: 'bottom',
+                    container: '.module-container-wrap',
+                    trigger: 'hover',
+                    html: true,
+                    content: function () {
+                        var $span = $('<span>' + Help.get_i18n('Click to remove from Favorites') + '</span>');
+                        return $span;
+                    }
+                });
+                loadFavorites();
+            },
+            error: function () {
+                $.tip.error(Help.get_i18n('Failed to add to Favorites!'), 'top-center');
+            }
+        });
+    };
+    var cancelFavorites = function ($favorites) {
+        // 提交前弹出确认框
+        $.confirm_simple({
+            content: Help.get_i18n('Are you sure you want to remove it from your favorites?'),
+            confirmButton: Help.get_i18n('Confirm'),
+            cancelButton: Help.get_i18n('Cancel')
+        }, function () {
+            var platformAppFavoritesId = $favorites.data('platformAppFavoritesId');
+            Request.ajax({
+                url: "sys/remove_PlatformAppFavorites.action",
+                type: "POST",
+                data: {jsonString: JSON.stringify([platformAppFavoritesId])},
+                dataType: 'json',
+                success: function (result) {
+                    $.tip.success(Help.get_i18n('Remove success from Favorites!'), 'top-center');
+                    $favorites.data('platformAppFavoritesId', '');
+                    $favorites.removeClass('fa-star module-favorites').addClass('fa-star-o module-empty-favorites');
+                    $favorites.al_popover('destroy');
+                    $favorites.al_popover({
+                        placement: 'bottom',
+                        container: '.module-container-wrap',
+                        trigger: 'hover',
+                        html: true,
+                        content: function () {
+                            var $span = $('<span>' + Help.get_i18n('Click to add to Favorites') + '</span>');
+                            return $span;
+                        }
+                    });
+                    loadFavorites();
+                },
+                error: function () {
+                    $.tip.error(Help.get_i18n('Remove failed from Favorites!'), 'top-center');
+                }
+            });
+        });
+    };
+
+
+    var createTab = function (config) {
+        var menuId = config['menuId'];
+        var caption = config['caption'];
+        var url = config['url'];
+        var favorites = config.hasOwnProperty('favorites') && config['favorites'];
+
+        var $tab = $('<li>'
+            +'  <a href="javascript:;" style="top: 50px;">'
+            +'  </a>'
+            +'</li>');
+
+        var currentActive = $('.navbar-tab-title').find('li > a.active');
+        if(currentActive.length > 0){
+            $tab.attr('title',caption).insertAfter(currentActive.parent());
+        }else{
+            $('.navbar-tab-title').append($tab.attr('title',caption));
+        }
+        $tab.find('a').attr('data-moduletab', menuId);
+        $tab.find('a').data('config', config);
+        $tab.find('a').append("<div class='module-caption'>" + caption + "</div>");
+        if (config.hasOwnProperty('showRefresh') && config['showRefresh'] == true) {
+            $tab.find('a').append('<i class="fa fa-refresh module-refresh-btn" title="' + Help.get_i18n('Refresh the page') + '"></i>');
+        }
+        if (config.hasOwnProperty('showClose') && config['showClose'] == true) {
+            $tab.find('a').append('<i class="fa fa-remove module-close-btn"></i>');
+        }
+        if (favorites) {
+            Request.ajax({
+                url: 'sys/findAll_PlatformAppFavorites.action',
+                data: {
+                    jsonString: JSON.stringify({
+                        userId: __Session.userId,
+                        menuId: menuId
+                    })
+                },
+                async: false,
+                success: function (result) {
+                    var $favorites = null;
+                    var popoverText = "";
+                    if (result.success && result.data.length > 0) {
+                        $favorites = $('<i class="fa fa-star module-favorites"></i>');
+                        $favorites.data('platformAppFavoritesId', result.data[0]['platformAppFavoritesId']);
+                        popoverText = Help.get_i18n('Click to remove from Favorites');
+                    } else {
+                        $favorites = $('<i class="fa fa-star-o module-empty-favorites"></i>');
+                        popoverText = Help.get_i18n('Click to add to Favorites');
+                    }
+                    $favorites.insertBefore($tab.find('.module-close-btn'));
+                    $favorites.al_popover({
+                        placement: 'bottom',
+                        container: '.module-container-wrap',
+                        trigger: 'hover',
+                        html: true,
+                        content: function () {
+                            var $span = $('<span>' + popoverText + '</span>');
+                            return $span;
+                        }
+                    });
+                    $favorites.on('click', function () {
+                        var $favorites = $(this);
+                        var data = $favorites.data();
+                        if (data.hasOwnProperty('platformAppFavoritesId') && data['platformAppFavoritesId'].length > 0) {
+                            cancelFavorites($favorites);
+                        } else {
+                            addFavorites($favorites);
+                        }
+                    });
+                }
+            });
+        }
+
+        //显示tab
+        forwardTab($tab);
+        $('.navbar-tab-title li>a.active').removeClass('active');
+        $tab.find('a').animate({top:'0px'},'fast',function(e){
+            $('.navbar-tab-title li>a.active').removeClass('active');
+            $(this).addClass("active");
+        });
+
+        //绑定tab关闭事件
+        $tab.find('.module-close-btn').click(function(e){
+            e.stopPropagation();
+            var isActive = $(this).parents('a').hasClass('active');
+            $(this).parent().animate({top:'50px'},'fast',function(e){
+                $(this).parent().remove();
+                var menuId = $(this).data('moduletab');
+                $('.module-wrap>.module-item[data-module="'+menuId+'"]').remove();
+            });
+            if (isActive){
+                $(this).parents('li').prev().children('a').trigger('click');
+            }
+        });
+
+        //绑定tab刷新事件
+        $tab.find('.module-refresh-btn').click(function (e) {
+            e.preventDefault();
+            var $a = $(this).parents('a');
+            var config = $a.data('config');
+            if (!$a.hasClass('active')) {
+                $('.navbar-tab-title li>a.active').removeClass('active');
+                $(this).addClass('active');
+                // $('.module-wrap .module-item').hide();
+                var menuId = $(this).data('moduletab');
+                $('.module-wrap .module-item.active').removeClass('active');
+                $('.module-wrap .module-item[data-module="' + menuId + '"]').addClass('active');
+            }
+            activeModule(config);
+        });
+
+        //绑定tab点击事件
+        $tab.find('a').click(function(e){
+            e.preventDefault();
+            if (!$(this).hasClass('active')){
+                $('.navbar-tab-title li>a.active').removeClass('active');
+                $(this).addClass('active');
+                var menuId = $(this).data('moduletab');
+                $('.module-wrap .module-item.active').removeClass('active');
+                $('.module-wrap .module-item[data-module="'+menuId+'"]').addClass('active');
+                loadHelp(menuId,caption);
+            }
+        });
+
+    }
+
+    var loadHelp = function (menuId,menuName) {
+
+        // if (menuId == "System_Home"){ //与 loadHome 中menuId 呼应
+        //     return;
+        // } else{
+        //     Request.get({url:'sys/findByMenuId_Help.action', data:{jsonString:JSON.stringify({menuId:menuId})}, callback:function(result){
+        //         if(result.data==""){
+        //             result.data = {title: menuName, content: menuName, diyContent: Help.get_i18n('No Data!')}
+        //         }
+        //         if(!result.data.diyContent){
+        //             result.data.diyContent = Help.get_i18n('No Data!');
+        //         }
+        //         var diyContentSystem = '';
+        //         Request.ajax({
+        //             url: 'sys/findByMenuId_Help.action',
+        //             data: {jsonString: JSON.stringify({menuId: menuId+"_System"})},
+        //             async:false,
+        //             success: function (result) {
+        //                 if (result.success) {
+        //                     if(result.data){
+        //                         diyContentSystem = result.data.diyContent;
+        //                     }
+        //                 }
+        //             }
+        //         });
+        //         $('.help-content .text').empty().append('<h3 style="margin-top: 0;">' + result.data.title + Help.get_i18n('System') + Help.get_i18n('Explanation') + "</h3>").append('<div>' + result.data.content + '</div><div style="margin-top: 10px;">'+diyContentSystem+'</div>');
+        //         $('.help-content .text').append("<hr/>").append('<h3 style="margin-top: 0;">' + Help.get_i18n('Diy Content') + "</h3>").append('<div>' + result.data.diyContent + '</div>');
+        //         $('.help-container').addClass('item');
+        //     }});
+        // }
+    }
+
+    var loadSpeech = function(){
+        $('body input.eip-input-speech').each(function(){
+            var $input = $(this);
+            if($input.hasClass('speech-active')){
+                return true;
+            }
+            var $speech = $('<span class="fa fa-microphone fa-span-speech"></span>');
+            $speech.css({'line-height':$input.outerHeight()+'px'});
+            $speech.click(function(){
+                recorder.startRecording($input);
+            });
+            $input.addClass('speech-active').after($speech);
+            $input.parent().css('position','relative');
+        });
+    };
+
+    var loadPage = function (menuId, url, animate, callback, pageParams) {
+        var minHeight = $(window).height()-100 + "px";
+        var $page = $('<div class="module-item" style=" left:60px;"></div>').css('minHeight',minHeight);
+        $('.module-wrap').addClass('loading').append($page.attr('data-module',menuId));
+        $('.module-wrap .module-item.active').removeClass('active');
+
+        var params = $.extend({}, pageParams ? pageParams : {}, {menuId: menuId});
+
+        var paramPosition=url.indexOf("?");
+        if (paramPosition>0){
+            var paramsText=url.substring(paramPosition+1);
+            var array=paramsText.split('&');
+            for(var i=0; i<array.length; i++){
+                var pArray=array[i].split('=');
+                params[pArray[0]]=pArray[1]
+            }
+            url=url.substring(0,paramPosition);
+        }
+        setTimeout(function () {
+            require([url], function (module) {
+                var _this = module;
+                if (typeof (module) == 'function'){
+                    var _this = module();
+                }
+                if (typeof(_this.view) == 'function'){
+                    var $module = $(__ParseAlTag(_this.view($page, params, _this)));
+                    loadSpeech();
+                    $page.empty().append( $module );
+                    $page.find('[data-auth]').addClass('ua-auth');
+                    __AuthRefresh(menuId);
+                    $('.module-wrap').removeClass('loading');
+                    $('.module-wrap .module-item.active').removeClass('active');
+                    $page.addClass('active');
+                    if (animate == false) {
+                        $page.css('left', '0px');
+                    } else {
+                        $page.animate({left: '0px'});
+                    }
+                    if (typeof (callback) == 'function'){
+                        callback.call($(this));
+                    }
+                }
+                _this.init($module, params, _this);
+            },function(err){
+                var failedId = err.requireModules&& err.requireModules[0];
+                console.log("failedId:"+failedId);
+                console.log(err);
+                requirejs.undef(failedId);
+                require(['jquery'], function () {});
+            });
+        },10)
+    }
+
+    var loadPageByIFrame  = function(menuId, url, animate, iframeHeight, callback){
+        var minHeight = $(window).height()-100 + "px";
+        var $page = $('<div class="module-item" style="left:60px;"></div>').css('minHeight', minHeight);
+        $('.module-wrap').addClass('loading').append($page.attr('data-module',menuId));
+        // $('.module-wrap .module-item').hide();
+        $('.module-wrap .module-item.active').removeClass('active');
+        $page.append("<iframe frameborder='0' src='" + encodeURI(url) + "' style='width:100%;height:" + iframeHeight + "px;'></iframe>");
+        $('.module-wrap').removeClass('loading');
+        $page.addClass('active');
+        if (animate == false){
+            $page.css('left','0px');
+        }else{
+            $page.animate({left:'0px'});
+        }
+    }
+
+    var validateMenuId = function(menuId, url){
+
+        if (menuId == "System_Home") {  //与 loadHome 中menuId 呼应
+            return menuId;
+        }else{
+            if (__Auth[menuId] == undefined){
+                if (_urlMenuId[url] == undefined){
+                    var opts = {
+                        url:'sys/findAll_Menu.action',
+                        data:{jsonString: JSON.stringify({pageUrl:url})},
+                        async:false,
+                        success:function(result){
+                            if (result.success){
+                                var data = result.data[0];
+                                _urlMenuId[url] = (data==undefined) ? '' : data.menuId;
+                            }
+                        }
+                    }
+                    Request.ajax(opts);
+                }
+                var urlMenuId = _urlMenuId[url];
+                return (urlMenuId == undefined || urlMenuId=='') ? menuId : urlMenuId;
+            }else{
+                return menuId;
+            }
+        }
+    }
+
+    var activeModule = function (config) {
+        config = $.extend({}, default_, config);
+        var menuId = config['menuId'];
+        var caption = config['caption'];
+        var url = config['url'];
+        var reload = config['reload'];
+        var iframe = config['iFrame'];
+        var callback = config['callback'];
+        var iframeHeight = config['iFrameHeight'] || __ModuleHeight();
+        var favorites = config['favorites'];
+
+        menuId = validateMenuId(menuId, url);
+        config['menuId'] = menuId;
+
+        var $tabExists = $('.navbar-tab-title a[data-moduletab="'+menuId+'"]');
+        if ( $tabExists.length > 0){
+            //再次显示
+            showTab($tabExists);
+            if (reload){
+                $tabExists.find('.module-caption').text(caption);
+                $('.module-item[data-module="'+menuId+'"]').remove();
+                url = url.trim();
+                var animate = false;
+                if (iframe == true){
+                    loadPageByIFrame(menuId, url, animate, iframeHeight, callback);
+                }else{
+                    loadPage(menuId, url, animate, callback, config['params']);
+                }
+            }
+        }else{
+            //首次创建module
+            createTab(config);
+            //加载页面，首次
+            if (iframe == true){
+                loadPageByIFrame(menuId, url,true, iframeHeight, callback);
+            }else{
+                loadPage(menuId, url, true, callback, config['params']);
+            }
+        }
+        destroyMenuPopover();
+
+        loadHelp(menuId,caption);
+    };
+
+    /**
+     * 添加菜单提示
+     */
+    var renderMenuPopover = function () {
+        if (__Parameter.indexmenutextmode == 0 && $("#sidebar").hasClass('sidebar-min')) {
+            _$this.find('.sidebar-container > ul.sidebar-menu-container > li').each(function () {
+                var menuText = $(this).children('a').find('span.sidebar-menu-text').text();
+                $(this).al_popover({
+                    placement: 'right',
+                    container: '#sidebar',
+                    trigger: 'hover',
+                    html: true,
+                    content: function () {
+                        var $span = $('<span>' + menuText + '</span>');
+                        return $span;
+                    }
+                });
+            });
+        }
+    };
+
+    /**
+     * 销毁菜单提示
+     */
+    var destroyMenuPopover = function () {
+        if (__Parameter.indexmenutextmode == 0 && !$("#sidebar").hasClass('sidebar-min')) {
+
+            setTimeout(function () {
+                // _$this.find('.sidebar-container').find('ul.sidebar-menu-container').children('li').al_popover('destroy');
+                _$this.find('.sidebar-container > ul.sidebar-menu-container > li').al_popover('destroy');
+                $(_$this[0]).find('.popover').remove();
+            }, 100);
+
+        }
+    };
+
+    var loadMenu = function(){
+        var options = {
+            url : "sys/findFramePacket_Permission.action",
+            type: "GET",
+            dataType:'json',
+            success : function(result){
+
+                _menuPermission = result.operation;
+                var menuData = result.menu;
+
+                $('.sidebar-menu-container').removeClass('loading');
+                for(var i=0; i<menuData.length; i++){
+                    createMenu(menuData[i], $('.sidebar-menu-container') );
+                }
+                renderMenuPopover();
+                $('.sidebar-menu-container').metisMenu();
+                $('.sidebar-menu-item').click(function(){
+                    var menuId = $(this).data('menu');
+                    var caption = $(this).children('.sidebar-menu-text').html();
+                    var url = $(this).data('url');
+                    var regex = new RegExp("^((http|https):\/\/)","i");
+                    var regexIFrame = new RegExp("^(iframe:)","i");
+                    if (regex.test(url)){ //外部地址 http://
+                        window.open(url);
+                    }else if(regexIFrame.test(url)) {  //iframe方式展现
+                        url = url.substring(7);
+                        activeModule({menuId: menuId, caption: caption, url: url, iFrame: true, favorites: true});
+                    }else{
+                        activeModule({menuId: menuId, caption: caption, url: url, favorites: true});
+                    }
+                });
+                if (_portalModuleId != null) {
+                    setTimeout(function () {
+                        $('.sub-menu-container').find('.sidebar-menu-item[data-menu="' + _portalModuleId + '"]').trigger('click');
+                    }, 1000);
+                }
+
+                //收藏夹
+                fillFavorites(result.favorites);
+
+                //顶部菜单权限
+                authTopMenu(result.topPermissionMenu);
+            }
+        };
+        $.ajax(options);
+    };
+
+    var createMenu = function(menu, $parent){
+        var $menu = $('<li data-toggle="tooltip"></li>');
+        var $menuContext = $('<a href="javascript:;">' +
+            '<span class="sidebar-menu-icon"></span>' +
+            '<span class="sidebar-menu-text"></span>' +
+            '<span class="sidebar-menu-arrow"></span>' +
+            '<span class="sidebar-menu-msg label label-warning"></span></a>');
+        $menuContext.children('.sidebar-menu-text').html(menu.text);
+        $menuContext.children('.sidebar-menu-icon').addClass( (menu.iconClass=="")?"fa fa-angle-right":menu.iconClass);
+        $menu.append($menuContext);
+        if (menu.virtual==0) {
+            $parent.append($menu);
+        }
+        controlIndexMenuTextVisible();
+        if (menu.pageUrl.trim() ==''){
+            $menuContext.attr({'data-menu':menu.id});
+            $menuContext.children('.sidebar-menu-arrow').append('<i class="fa fa-angle-down"></i>');
+            $menuContext.click(function(){ //min版菜单点击时变化成最大化
+                $('.header').removeAttr('style');
+                $('#sidebar').removeAttr('style');
+                $('.module-container').removeAttr('style');
+                $('.sidebar-min').removeClass('sidebar-min');
+                controlIndexMenuTextVisible();
+            });
+            var $subMenu = $('<ul class="sub-menu-container"></ul>');
+            $menu.append($subMenu);
+            var $root = $subMenu.parent('li').parent('ul');
+            var deep = 1;
+            while(!$root.hasClass('metismenu')){
+                $root = $root.parent('li').parent('ul');
+                deep++;
+            }
+            $subMenu.addClass('f'+deep);
+            for(var c=0; c<menu.childrens.length;c++){
+                createMenu(menu.childrens[c], $subMenu);
+            }
+        }else{
+            $menuContext.addClass('sidebar-menu-item').attr({'data-menu':menu.id,'data-url':menu.pageUrl});
+            __Auth[menu.id]=_menuPermission[menu.id] || [];
+        }
+    };
+
+    var activeMyMenu = function(){
+        $('#me-menu a[data-url]').on('click', function(e) {
+            var url = $(this).data('url');
+            var menuId = $(this).data('menu');
+            var caption = $(this).children('span').text();
+            activeModule({menuId: menuId, caption: caption, url: url});
+        });
+    }
+
+    var extendMenu = function(){
+        $('#closePage').on('click',function(){
+            $('.module-nav a.active>i.module-close-btn').trigger('click');
+        });
+        $('#closeAllPage').on('click',function(){
+            $('.module-nav a>i.module-close-btn').trigger('click');
+        });
+        $('#closeOtherPage').on('click',function(){
+            $('.module-nav a:not(.active)>i.module-close-btn').trigger('click');
+        });
+        $('#btnHelp, #systemHelp .close-help').on('click',function(e) {
+            e.preventDefault();
+            $("#systemHelp").toggleClass("open");
+            if ($("#systemHelp").hasClass("open")){
+                var menuId = $('.navbar-tab-title li>a.active').data('moduletab')
+                var menuName = $('.navbar-tab-title li>a.active').text();
+                loadHelp(menuId,menuName);
+            }
+        });
+        $('#btnMaximize').on('click',function(e){
+            e.preventDefault();
+            $('.body-container').toggleClass('maximize');
+            var headerHeight = parseInt($('.header').css('height'));
+            if (!$('.header').hasClass('maximize')){
+                $('.header').animate({left: 0,top: (0-headerHeight)});
+                $('#sidebar').animate({width: 0});
+                $('#systemHelp').animate({top: 0});
+                $('.module-container').animate({marginLeft: 0});
+                $('.body-container').animate({marginTop:0});
+                $('.header').addClass('maximize');
+                $('#btnMaximize>span').html(Help.get_i18n('Restore'));
+            }else{
+                var min = $('#sidebar').hasClass('sidebar-min');
+                var closed = $('#sidebar').hasClass('sidebar-closed');
+                if(!closed){
+                    $('#sidebar').animate({width: min?'65px':'200px'});
+                    $('.module-container').animate({marginLeft: min?'65px':'200px'});
+                }
+                $('#systemHelp').animate({top: headerHeight});
+                $('.header').animate({left:closed?0:min?'65px':'200px',top: 0},function(){
+                    $('.header').removeClass('maximize');
+                });
+                $('.body-container').animate({marginTop: headerHeight});
+                $('#btnMaximize>span').html(Help.get_i18n('Maximize'));
+            }
+        });
+    }
+
+    var loadHome = function(){
+        var urlParams={};
+        if (__Session.urlParams != undefined){
+            urlParams = __Session.urlParams;
+        }
+        if (urlParams.hasOwnProperty('portalModuleId')) {
+            _portalModuleId = urlParams['portalModuleId'];
+        }
+
+        if (urlParams.url != undefined){
+            urlParams = $.extend({}, {menuId: "System_Home", caption: Help.get_i18n('Workbench')}, urlParams);
+            activeModule({menuId: urlParams.menuId, caption: urlParams.caption, url: urlParams.url});
+        }else if (typeof(framePlugin.loadHome) == 'function'){
+            framePlugin.loadHome();
+        } else {
+            var menuId = "System_Home";
+            var caption = Help.get_i18n('Workbench');
+
+            var url = "user/home/home";
+            var userType = __Session.userType;
+            if (userType == "1"){
+                url = "student/home/home";
+            }else if (userType == "2"){
+                // url = "faculty/home/home";
+                url = 'widget/widgetHome/widgetHome'; // 教职工启用新工作台
+            } else { // 若用户为非学生和职工,则直接进入新的首页
+                url = 'widget/widgetHome/widgetHome';
+            }
+
+            activeModule({menuId: menuId, caption: caption, url: url,showRefresh:true, showClose:false});
+        } 
+    }
+    var controlIndexMenuTextVisible = function(){
+        if ($("#sidebar").hasClass("sidebar-min") ){
+            $("#sidebar.sidebar-min .sidebar-menu-container>li>a>.sidebar-menu-text").css('display', (__Parameter.indexmenutextmode == 1)?'block':'none');
+        }else{
+            $("#sidebar .sidebar-menu-container>li>a>.sidebar-menu-text").css('display', 'inline-block');
+        }
+    };
+
+    var initSide = function(){
+        $("#header-toggle-sidebar").click(function(e) {  //切换菜单显示/隐藏
+            e.preventDefault();
+            $("#sidebar").css("width", "");
+            $(".module-container").css("margin-left", "");
+            $('.header').removeAttr('style');
+            if ($(".body-container").hasClass('sidebar-closed') || $(".body-container").hasClass('sidebar-min')){
+                $(".body-container").removeClass('sidebar-min').toggleClass("sidebar-closed");
+                $("#sidebar").removeClass('sidebar-min').toggleClass("sidebar-closed");
+                destroyMenuPopover();
+            }else{
+                $(".sidebar-menu-container>li.active>a").trigger("click");
+                $(".body-container").addClass('sidebar-min');
+                $("#sidebar").addClass('sidebar-min');
+                renderMenuPopover();
+            }
+            controlIndexMenuTextVisible();
+        });
+
+        $('#sidebar>.sidebar-container').css('height', $(window).height()-$('.body-container .header').height() );
+        $('#sidebar>.sidebar-container').slimScroll({  //sidebar小滚动条
+            height: $('#sidebar>.sidebar-container').height(),
+            distance:'-1px'
+        });
+        $('.help-search-list>ul').slimScroll({  //sidebar小滚动条
+            height: ($(window).height()-110)+'px',
+            position:'left',
+            distance:'-1px'
+        });
+        $('.help-content>.text').slimScroll({  //sidebar小滚动条
+            height: ($(window).height()-145)+'px',
+            position:'left',
+            distance:'-1px'
+        });
+
+        /*$("#sidebar .divider").mousedown(function(e) {
+            e.preventDefault();
+            var A = $(this).width();
+            $(document).mousemove(function(D) {
+                var C = D.pageX + A;
+                if (C <= 300 && C >= (A * 2 - 3)) {
+                    if (C>75){
+                         $('.body-container').removeClass('sidebar-min');
+                    }
+                    if (C >= 240 && C <= 260) {
+                        $("#sidebar").css("width", 250);
+                        $("#sidebar>.sidebar-container").css("width", 250);
+                        $(".module-container").css("margin-left", 250);
+                        $("#sidebar>.divider").css("margin-left", 250)
+                    } else if (C >= 55 && C <= 75) {
+                        $(".sidebar-menu-container>li.active>a").trigger("click");
+                        $('.body-container').addClass('sidebar-min');
+                    } else {
+                        $("#sidebar").css("width", C);
+                        $("#sidebar>.sidebar-container").css("width", C);
+                        $(".module-container").css("margin-left", C);
+                        $("#sidebar>.divider").css("margin-left", C)
+                    }
+                }
+            })
+        });*/
+        $("#systemHelp .divider").mousedown(function(e) {
+            e.preventDefault();
+            var A = $(this).width();
+            $(document).mousemove(function(D) {
+                var C = $(window).width() - D.pageX + A;
+                if ( C <= ($(window).width() / 2) && C >= (A * 2 - 3) ){
+                    $("#systemHelp").css("width", C);
+                }
+            })
+        });
+        $(document).mouseup(function(A) {
+            $(document).unbind("mousemove")
+        });
+        $("#systemHelp .divider").dblclick(function() {
+            $("#systemHelp").removeClass('open');
+        })
+    }
+
+    var initSearch = function(){
+
+        $("#searchForm").autocomplete({
+            position:{
+                my:'left-0 top-1'
+            },
+            source:function(request, response) {
+                Request.post({
+                    url: "sys/autocomplete_Search.action",
+                    data: {
+                        jsonString: JSON.stringify({key:request.term})
+                    },
+                    callback: function(result) {
+                        response($.map(result, function(item) {
+                            return {
+                                label: item.itemNameLocal,
+                                value: item.itemId,
+                                type:item.itemType,
+                                url:item.url,
+                                menuId:item.menuId
+                            }
+                        }));
+                    }
+                });
+            },
+            focus: function (event, ui){
+                $("#searchForm").val( ui.item.label);
+                return false;
+            },
+            select: function (event, ui) {
+                $("#searchForm").val( ui.item.label);
+
+                activeModule({menuId: ui.item.menuId, caption: ui.item.label, url: ui.item.url, reload: true});
+
+                Request.post({
+                    url: "sys/addSearchCount_Search.action",
+                    data: {
+                        jsonString: JSON.stringify({ itemId: ui.item.value })
+                    }
+                });
+                return false;
+            }
+        });
+
+        $("#searchForm").data("ui-autocomplete")._renderItem = function( ul, item ) {
+            return $( "<li></li>" )
+                .data( "item.autocomplete", item )
+                .append( "<a><span>" + item.label + "</span><span class='search-item-extend'>" + Help.get_i18n('SearchType-'+item.type) + "</span></a>" )
+                .appendTo( ul );
+        };
+        $("#searchForm").data("ui-autocomplete")._renderMenu = function( ul, items ) {
+            var that = this;
+            $.each( items, function( index, item ) {
+                that._renderItemData( ul, item );
+            });
+            $( ul).css({ 'zIndex':2000});
+        }
+    }
+
+    var initHelp = function(){
+        $('#searchHelpCopy').hideseek({
+            highlight: true
+        });
+        $('#searchHelp').keyup(function(e){
+            if (e.keyCode != 38 && e.keyCode != 40 && e.keyCode != 13 && $(this).val() != '') {
+                var that = this;
+                var key = {title: $(this).val(), userRole: __Session.userRole};
+                var options = {
+                    url: "sys/findAll_Help.action",
+                    type: "GET",
+                    data: {jsonString: JSON.stringify(key)},
+                    dataType: 'json',
+                    success: function (result) {
+                        $('.help-search-list-ul').removeClass('loading');
+                        if (result.success) {
+                            for (var i = 0; i < result.data.length; i++) {
+                                var $title = $('<a href="javascript:;"><h6>' + result.data[i].title + '</h6></a>');
+                                var $context = $('<div>'+ Help.ellipsis(Help.htmlToText(result.data[i].content),25) +'</div>');
+                                $('.help-search-list ul').append( $('<li></li>').append($title).append($context) );
+                                $title.data(result.data[i]);
+                                $title.on('click',{},function(e){
+                                    var data = $(this).data();
+                                    var diyContentSystem = '';
+                                    if(data){
+                                        Request.ajax({
+                                            url: 'sys/findByMenuId_Help.action',
+                                            data: {jsonString: JSON.stringify({menuId: data.helpId+"_System"})},
+                                            async:false,
+                                            success: function (result) {
+                                                if (result.success) {
+                                                    if(result.data){
+                                                        diyContentSystem = result.data.diyContent;
+                                                    }
+                                                }
+                                            }
+                                        });
+                                    }
+                                    if(data==""){
+                                        data = { title: menuName, content: menuName, diyContent: Help.get_i18n('No Data!')}
+                                    }
+                                    if(!data.diyContent){
+                                        data.diyContent = Help.get_i18n('No Data!');
+                                    }
+                                    $('.help-content .text').empty().append('<h3 style="margin-top: 0;">' + data.title + Help.get_i18n('System') + Help.get_i18n('Explanation') + "</h3>").append('<div>' + data.content + '</div><div style="margin-top: 10px;">'+diyContentSystem+'</div>');
+                                    $('.help-content .text').append("<hr/>").append('<h3 style="margin-top: 0;">' + Help.get_i18n('Diy Content') + "</h3>").append('<div>' + data.diyContent + '</div>');
+
+                                    $('.help-container').addClass('item');
+                                });
+                            }
+                        }
+                        $('.help-container').removeClass('item');
+                        $('.back-search-list').removeClass('hidden');
+                        $('#searchHelpCopy').val($(that).val()).trigger('keyup');
+
+                        var $activeMenuHelp = $('<li><a href="javascript:;">'+Help.get_i18n('Show the current page help info')+' <i class="fa fa-question"></i></a></li>');
+                        $('.help-search-list-ul').prepend($activeMenuHelp);
+                        $activeMenuHelp.on('click',{},function(){
+                            var menuId = $('.navbar-tab-title li>a.active').data('moduletab')
+                            var menuName = $('.navbar-tab-title li>a.active').text();
+                            loadHelp(menuId, menuName);
+                        });
+                    }
+                };
+                $('.help-search-list-ul').empty().addClass('loading');
+                $.ajax(options);
+            }
+        });
+        $('.back-search-list').click(function(e){
+            $('.help-container').removeClass('item');
+        });
+
+    }
+
+    var destroyModule = function(menuId){
+        var $tab = $('.navbar-tab-title a[data-moduletab="'+menuId+'"]');
+        if ($tab){
+            $tab.find('.module-close-btn').trigger('click');
+        }
+    }
+
+    var logout = function(){
+        $('._csrf').attr({'name':$('meta[name=_csrf_parameter]').attr('content'), 'value': $('meta[name=_csrf]').attr('content')})
+        $('form[action=logout]').submit();
+    }
+
+    var initPlugin = function(){
+        framePlugin.init();
+    }
+
+    var loadBrowserWarn = function () {
+        _browser = browser();
+        var warning_content = "";
+        var warn_flag = false;
+        if (_browser == undefined) {
+            warn_flag = true;
+            warning_content = "Please use the recommended browser!";
+        } else if (_browser != undefined && _browser.indexOf("IE") > -1 && parseFloat(_browser.substring(2)) <= 10) {
+            warn_flag = true;
+            warning_content = "Your browser version is too low, please update!";
+        }
+        if (warn_flag) {
+            var browserWarn = "<div id='warn' style='position:fixed;'>" + Help.get_i18n(warning_content) +
+                "<span id='warn_help'>&#63;</span><span id='warn_close'>&times;</span>" +
+                "</div>";
+            $("body").prepend(browserWarn);
+            $("#warn").css({
+                "width": "100%",
+                "height": "30px",
+                "font-size": "15px",
+                "text-align": "center",
+                "line-height": "30px",
+                "top": "0",
+                "color": "#8a6d3b",
+                "border-color": "#faebcc",
+                "background-color": "#fcf8e3",
+                "z-index": "999"
+            });
+            $("#warn_help").css({
+                "color": "orange",
+                "font-size": "20px",
+                "cursor": "pointer",
+                "position": "absolute",
+                "right": "35px",
+                "top": "3px"
+            });
+            $("#warn_close").css({
+                "color": "black",
+                "font-size": "25px",
+                "cursor": "default",
+                "position": "absolute",
+                "right": "10px",
+                "top": "0"
+            });
+            $("#warn_help").on("click", function () {
+                $.al_modal({
+                    backdrop: 'static',
+                    keyboard: 'false',
+                    title: Help.get_i18n('Supported Browsers'),
+                    autoHide: false,
+                    showBtnCancel: false,
+                    showBtnConfirm: false,
+                    content: function ($modal) {
+                        var links =
+                            "<div id='download'>" +
+                            "<div>" +
+                            "<img src='front/img/browsers/Chrome.png' alt='Chrome.png'><br/>" +
+                            "<span>" + Help.get_i18n('Google Chrome') + "</span><br/>" +
+                            "<a href='http://rj.baidu.com/search/index/?kw=%25E8%25B0%25B7%25E6%25AD%258C%25E6%25B5%258F%25E8%25A7%2588%25E5%2599%25A8' target='_blank'>" + Help.get_i18n('Download') + "</a>" +
+                            "</div>" +
+                            "<div>" +
+                            "<img src='front/img/browsers/360.png' alt='360.png'><br/>" +
+                            "<span>" + Help.get_i18n('360 Browser') + "</span><br/>" +
+                            "<a href='http://rj.baidu.com/search/index/?kw=360%25E6%25B5%258F%25E8%25A7%2588%25E5%2599%25A8' target='_blank'>" + Help.get_i18n('Download') + "</a>" +
+                            "</div>" +
+                            "<div>" +
+                            "<img src='front/img/browsers/FireFox.png' alt='FireFox.png'><br/>" +
+                            "<span>" + Help.get_i18n('Mozilla Firefox') + "</span><br/>" +
+                            "<a href='http://rj.baidu.com/search/index/?kw=%25E7%2581%25AB%25E7%258B%2590' target='_blank'>" + Help.get_i18n('Download') + "</a>" +
+                            "</div>" +
+                            "<div>" +
+                            "<img src='front/img/browsers/Safari.png' alt='Safari.png'><br/>" +
+                            "<span>" + Help.get_i18n('Safari') + "</span><br/>" +
+                            "<a href='http://rj.baidu.com/search/index/?kw=Safari' target='_blank'>" + Help.get_i18n('Download') + "</a>" +
+                            "</div>" +
+                            "<div>" +
+                            "<img src='front/img/browsers/IE11.png' alt='IE11.png'><br/>" +
+                            "<span>" + Help.get_i18n('Internet Explorer 11') + "</span><br/>" +
+                            "<a href='http://rj.baidu.com/search/index/?kw=Internet%2520Explorer%252011' target='_blank'>" + Help.get_i18n('Download') + "</a>" +
+                            "</div>" +
+                            "<div>" +
+                            "<img src='front/img/browsers/Edge.png' alt='Edge.png'><br/>" +
+                            "<span>" + Help.get_i18n('Microsoft Edge') + "</span><br/>" +
+                            "<a href='https://www.microsoft.com/en-us/windows/microsoft-edge' target='_blank'>" + Help.get_i18n('Download') + "</a>" +
+                            "</div>" +
+                            "</div>";
+                        $modal.find('.modal-body').append(links);
+                        $modal.find("#download").css({"font-size": "20px"});
+                        $modal.find("#download>div").css({
+                            "display": "inline-block",
+                            "text-align": "center",
+                            "width": "50%"
+                        });
+                        $modal.find("#download img").css({
+                            "width": "40px",
+                            "height": "40px",
+                            "margin-top": "15px",
+                            "margin-bottom": "15px"
+                        });
+                    }
+                });
+            });
+            $("#warn_close").on("click", function () {
+                $("#warn").hide();
+            });
+        }
+    }
+
+    var browser = function () {
+        var userAgent = navigator.userAgent.toLowerCase();
+        if (userAgent.indexOf("firefox") > -1) {
+            return "FireFox";
+        }
+        if (userAgent.indexOf("chrome") > -1) {
+            return "Chrome";
+        }
+        if (userAgent.indexOf("safari") > -1) {
+            return "Safari";
+        }
+        if (userAgent.indexOf("Edge") > -1) {
+            return "Edge";
+        }
+        var rMsie = /(msie\s|trident.*rv:)([\w.]+)/;
+        var match = rMsie.exec(userAgent);
+        if (match != null) {
+            return "IE" + (match[2] || "0");
+        }
+    }
+    return {
+
+        init: function ($container) {
+            _$container = $container;
+            _$this = $( Help.parseAlTag(html) );
+            loadSpeech();
+            _$container.empty().append(_$this);
+            _$this.find('span#userName').html(__Session.userName);
+            initPage();
+            initPlugin();
+            loadHome();
+            loadMenu();
+            initTab();
+            initSide();
+            // loadBrowserWarn();
+            activeMyMenu();
+            extendMenu();
+            initSearch();
+            initHelp();
+
+            require(['../js/online'], function(online){
+                online.init();
+            });
+            remainUpdatePwd();
+
+            if ("xjStudent" == __Session.loginName) {
+                $.tip.warning('您好!您的个人信息不完整,到个人中心页面补充!', 'bottom-right', 5000);
+            }
+
+
+            if (typeof framePlugin.after == 'function'){
+                framePlugin.after(); //这个方法永远放到最后执行，兜底的补丁
+            }
+        },
+
+        activeModule : function(menuId, caption, url, reload, iFrame){
+            var config = {};
+            if (typeof menuId == 'object'){
+                config = menuId;
+            }else{
+                config['menuId'] = menuId;
+                config['caption'] = caption;
+                config['url'] = url;
+                config['reload'] = reload;
+                config['iFrame'] = iFrame;
+            }
+            activeModule(config);
+        },
+
+        destroyModule : function(menuId){
+            if (menuId === undefined){
+                menuId = $('.module-item.active').data('module');
+            }
+            destroyModule(menuId);
+        },
+        loadFavorites: function () {
+            loadFavorites();
+        },
+        loadSpeech : function(){
+            loadSpeech();
+        }
+    };
+
+});

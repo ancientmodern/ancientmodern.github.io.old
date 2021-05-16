@@ -1,0 +1,38 @@
+define(['jquery'], function ($) {
+
+    return {
+        openForm: function (params) {
+            var processInstanceId = params.processInstanceId;
+            var formInstanceId = params.formInstanceId;
+            var processKey = params.processKey;
+            Request.ajax({
+                async: false,
+                url: 'workflow/findMyTodo_ProcessTask.action',
+                data: {
+                    start: 0, limit: 1, jsonString: JSON.stringify({
+                        processInstanceId: processInstanceId
+                    })
+                },
+                success: function (result) {
+                    var datas = result.data;
+                    if (datas.length != 0) {
+                        var workflow = datas[0];
+                        require(["workflowApprove/workflowApprove"], function (approve) {
+                            approve.viewApplyForm(workflow.taskDefinitionKey, workflow.taskId, workflow.businessKey, true, workflow.processKey);
+                        });
+                    } else {
+                        require(["workflowApprove/workflowApprove"], function (approve) {
+                            approve.viewApplyForm('', '', formInstanceId, false, processKey);
+                        });
+                    }
+                }
+            });
+        }
+    };
+});
+
+
+
+
+
+

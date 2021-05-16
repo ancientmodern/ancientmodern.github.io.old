@@ -1,0 +1,423 @@
+.drop-mode-page {
+    padding: 20px;
+}
+.drop-mode-page .label{
+}
+
+.drop-mode-page:after {
+    display: block;
+    clear: both;
+    content: "";
+    visibility: hidden;
+    height: 0;
+}
+.drop-mode-page .drop-mode-page-header .drop-mode-page-header-right{
+    width: 100%;
+    text-align: right;
+}
+.drop-mode-page .drop-mode-page-header .drop-mode-page-header-right > .drop-mode-page-header-function li div{
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 30px;
+    color: #fff;
+    cursor: pointer;
+}
+.drop-mode-page .main-page{
+    width: 100%;
+}
+
+.drop-mode-page .main-page .empty-lesson-task{
+    font-size: 35px;
+    display: block;
+    margin-left: auto;
+    width: 100%;
+    text-align: center;
+    margin-top: 15%;
+}
+.drop-mode-page .course-type-panel {
+    margin-bottom: 20px;
+}
+
+.drop-mode-page .course-type-panel .course-type-header {
+    font-size: 16px;
+    margin-bottom: 10px;
+    background-color: #c7bfbf;
+    padding: 2px 5px;
+}
+
+.drop-mode-page .course-type-panel .course-type-header p{
+    margin-bottom: 0px;
+}
+
+.drop-mode-page .course-type-panel .course-type-header .course-type-name {
+    margin-right: 15px;
+}
+
+.drop-mode-page .course-type-panel .course-type-header .maxCredit,
+.drop-mode-page .course-type-panel .course-type-header .minCredit,
+.drop-mode-page .course-type-panel .course-type-header .electedCredit,
+.drop-mode-page .course-type-panel .course-type-header .studiedCredit {
+    font-size: 14px;
+    margin-right: 10px;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task {
+
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task {
+    margin-left: 0px;
+    margin-right: 0px;
+    padding-bottom: 10px;
+    padding-top: 10px;
+}
+
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task.lesson-task-selected {
+    box-shadow: 1px 1px 10px #ddd;
+    border-top: 0;
+    border-left: 2px solid #efc46c;
+    border-right: 2px solid #efc46c;
+    background-color: #faebcc;
+}
+
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .course-group .lesson-task-group {
+    text-align: left;
+    margin-right: 85px;
+    font-size:18px;
+    margin-top:5px;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-info p {
+    margin-bottom: 0px;
+    font-size: 14px;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-info .lesson-task-name {
+    font-size: 18px;
+    font-weight:bold;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-info span.label {
+    margin-right:3px;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-code-circle {
+    border: 1px solid #ddd;
+    height: 60px;
+    width: 60px;
+    border-radius: 50%;
+    text-align: center;
+    font-size: 1em;
+    vertical-align: middle;
+    font-weight: 700;
+    margin-right:15px;
+    padding-top:5px;
+}
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-code-circle span.lesson-task-code-number{
+    display: block;
+    font-size:18px;
+    color: #002B60;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-code-circle p{
+    white-space: nowrap;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-slots {
+    margin-top: 24px;
+    cursor: pointer;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-slots-tip {
+    font-size: 12px;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-slots .progress .progress-bar {
+    text-align: left;
+    padding-left:3px;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-slots > span:first-child {
+    display: table-cell;
+    margin: 0px;
+    padding: 5px 10px;
+    background-color: #5cb85c;
+    color: #fff;
+    border-top-left-radius: 4px;
+    border-bottom-left-radius: 4px;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-slots > span:last-child {
+    display: table-cell;
+    margin: 0px;
+    padding: 5px 10px;
+    border-bottom: 1px solid #ddd;
+    border-right: 1px solid #ddd;
+    border-top: 1px solid #ddd;
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .prerequisite-rule{
+    font-style: oblique;
+    cursor: pointer;
+    font-weight: 700;
+    color: #bf6078;
+}
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-requirement{
+    color: #944074;
+}
+
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-status {
+    display: inline-block;
+    margin-top: 5px;
+    width: auto;
+    cursor: pointer;
+    color: rgb(156, 155, 155);
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-status .lesson-task-status-alarm{
+    display: block;
+}
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-group-section {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-group-section p {
+    margin-bottom: 0px;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-operation {
+    display: inline-block;
+    margin-top: 10px;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-operation button {
+    width: 100px;
+    height: 50px;
+    border-radius: 0;
+    white-space: normal;
+    position: relative;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-operation button.btn-default {
+    background-color: #777;
+    color: #fff;
+}
+
+.drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-calendar-conflict {
+    display: inline-block;
+    cursor: pointer;
+    margin-top:22px;
+}
+
+.drop-mode-page .cart-page {
+    width: 105%;
+    top: 20px;
+    padding: 10px;
+    height: 550px;
+    display: none;
+    border-bottom: 1px solid #ddd;
+    border-left: 1px solid #ddd;
+    border-top: 1px solid #ddd;
+    border-bottom-left-radius: 4px;
+    border-top-left-radius:4px;
+    box-shadow: 1px 1px 10px #ddd;
+    background-color:  #fff;
+    opacity: 1;
+    z-index: 1000;
+}
+.drop-mode-page .cart-page.moving {
+    position: fixed;
+    top: 165px;
+    left: 100%;
+}
+.drop-mode-page .cart-page:after {
+    display: block;
+    clear: both;
+    content: "";
+    visibility: hidden;
+    height: 0;
+}
+.drop-mode-page .cart-page .cart-page-statistic{
+    float: left;
+    width: 30%;
+    padding: 20px 10px;
+    overflow-y: auto;
+    height: 100%;
+    position: relative;
+}
+.drop-mode-page .cart-page .cart-page-statistic .cart-page-content{
+    height: 90%;
+    overflow-y: auto;
+}
+.drop-mode-page .cart-page .cart-page-statistic .cart-statistic-course-type li span{
+    display: block;
+    margin-left:20px;
+}
+.drop-mode-page .cart-page .cart-page-statistic .cart-statistic-course-type li span.course-type-name{
+    margin-left:10px;
+}
+.drop-mode-page .cart-page .cart-page-statistic .cart-statistic-course-type li span.electedCredit{
+    display: inline;
+    margin-left: 0;
+}
+
+.drop-mode-page .cart-page .cart-page-statistic .cart-statistic-term li span{
+    display: block;
+    margin-left:20px;
+}
+.drop-mode-page .cart-page .cart-page-statistic .cart-statistic-term li span.term-name{
+    margin-left:10px;
+}
+.drop-mode-page .cart-page .cart-page-statistic .cart-statistic-term li span.electedCredit{
+    display: inline;
+    margin-left: 0;
+}
+.drop-mode-page .cart-page .cart-page-lessontask {
+    float: left;
+    width: 70%;
+    border-left: 1px solid #ddd;
+    height: 100%;
+    overflow-y: auto;
+    padding: 20px;
+}
+.drop-mode-page .cart-page .cart-page-lessontask .empty-tip {
+    font-size: 24px;
+    width: 100%;
+    margin-top: 15%;
+    text-align: center;
+}
+.drop-mode-page .cart-page .cart-page-bottom{
+    clear: both;
+    padding-top: 5px;
+    position: absolute;
+    bottom: 10px;
+    margin-right: 20px;
+}
+.drop-mode-page .cart-page .cart-page-bottom:after {
+    display: block;
+    clear: both;
+    content: "";
+    visibility: hidden;
+    height: 0;
+}
+.drop-mode-page .cart-page .course-type-panel .course-type-lesson-task .lesson-task{
+    margin-top: 0;
+    line-height: 2em;
+    padding:5px 0;
+}
+
+.drop-mode-page .cart-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-info .lesson-task-name {
+    font-size: 18px;
+}
+
+.drop-mode-page .cart-page .course-type-panel .course-type-lesson-task .lesson-task:first-child{
+    margin-top: 0px;
+}
+.drop-mode-page .cart-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-operation {
+    margin-top: 0px;
+    text-align: left;
+    display: none;
+    font-size: 20px;
+}
+.drop-mode-page .cart-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-credit {
+    padding-left: 8px;
+}
+.drop-mode-page .cart-page .course-type-panel .course-type-lesson-task .lesson-task:hover .lesson-task-operation {
+    display:block ;
+}
+@media (min-width: 992px) {
+    .drop-mode-page  .course-type-panel .course-type-lesson-task .lesson-task  .lesson-task-name{
+        /*max-width: 450px;*/
+        word-wrap: break-word;
+        word-break: normal;
+        display: inline-block;
+        margin-right: 3px;
+    }
+}
+@media (min-width: 768px) {
+    .drop-mode-page .course-type-panel .course-type-lesson-task .lesson-task  .lesson-task-name{
+        /*max-width: 350px;*/
+        word-wrap: break-word;
+        word-break: normal;
+        display: inline-block;
+        margin-right: 3px;
+    }
+}
+@media screen and (max-width: 768px) {
+    .drop-mode-page .cart-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-operation{
+        display: block;
+    }
+    .drop-mode-page .cart-page .course-type-panel .course-type-lesson-task .lesson-task{
+        margin-top: 0;
+        padding-bottom: 0;
+        padding-top: 0;
+    }
+}
+@media screen and (max-width: 1024px) {
+    .drop-mode-page .cart-page .course-type-panel .course-type-lesson-task .lesson-task .lesson-task-operation{
+        display: block;
+    }
+    .drop-mode-page .cart-page .course-type-panel .course-type-lesson-task .lesson-task{
+        margin-top: 0;
+        padding-bottom: 0;
+        padding-top: 0;
+    }
+}
+
+.drop-mode-page .cart-page-link {
+    width: 50px;
+    height: 100px;
+    background: #d9534f;
+    border-radius: 50px 0 0 50px;
+    color: #fff;
+    text-align: center;
+    position: fixed;
+    right: 0;
+    padding: 10px;
+    top: 280px;
+    font-size: 46px;
+    padding: 28px 5px;
+    cursor: pointer;
+    opacity: 0.5;
+    z-index: 2000;
+    line-height: 1em;
+    display: none;
+}
+.drop-mode-page .cart-page-link:hover {
+    opacity: 1;
+}
+.drop-mode-page .cart-page-link .cart-page-tip{
+    padding: 1px 5px 1px 12px;
+    margin-top: -35px;
+    font-size: 14px;
+    z-index: 9999;
+    color: #d9534f;
+    background-color: transparent;
+    display: block;
+    font-weight: 500;
+}
+.drop-mode-page .cart-statistic{
+    font-size: 14px;
+    margin-left: 15px;
+}
+.drop-mode-page .cart-statistic .course-type-name{
+    margin-right: 10px;
+    margin-left: 20px;
+}
+.drop-mode-page .cart-statistic li:after{
+    content: '.';
+    display: none;
+    clear: both;
+}
+.drop-mode-page .elect-result-tip{
+    margin-left: 10px;
+    font-weight: 400;
+}

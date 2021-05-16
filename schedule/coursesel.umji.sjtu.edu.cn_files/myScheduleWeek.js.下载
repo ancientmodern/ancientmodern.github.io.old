@@ -1,0 +1,634 @@
+define(['text!mySchedule/myScheduleWeek.jsp', 'css!mySchedule/myScheduleWeek.css', 'tree', 'ueditor', 'WdatePicker'], function (html) {
+    var _$this;
+    var _params;
+    var _wd = null;
+    var _sp = null;
+    var _term = null;
+    var ScheduleParams = function () {
+        this.rowSize = 8;                                                                //行
+        this.colSize = 5;                                                                //列
+        this.sections = [];                                                              //节次
+        this.paramsSetting = null;                                                      //参数设置
+        this.weekLessonCalendar = null;                                                //周课表数据
+        this.dayLessonCalendar = null;                                                 //日课表数据
+        this.monday = DateUtil.getWeekDay(DateUtil.formatDate(new Date))[0];            //当前周一的日期
+        this.nowWeekDate = DateUtil.getWeekDay(DateUtil.formatDate(new Date));         //当前星期的日期
+        this.activeTeacherId = null;                                                  //当前选中的教师
+        this.nowTerm = null;                                                           //当前学期
+    };
+
+    var GetWeekDate = function (nowDate) {
+        var now = new Date(nowDate); //当前日期
+        this.nowDayOfWeek = now.getDay(); //今天本周的第几天
+        this.nowYear = now.getYear(); //当前年
+        this.nowMonth = now.getMonth(); //月
+        this.nowDay = now.getDate(); //日
+        this.nowYear += (this.nowYear < 2000) ? 1900 : 0; //
+        this.nowDayOfWeek = this.nowDayOfWeek == 0 ? 7 : this.nowDayOfWeek; // 如果是周日，就变成周七
+
+        this.date2str = function (x, y) {//date2str(new Date(curTime),"yyyy-MM-dd")
+            var z = {
+                y: x.getFullYear(),
+                M: x.getMonth() + 1,
+                d: x.getDate(),
+                h: x.getHours(),
+                m: x.getMinutes(),
+                s: x.getSeconds()
+            };
+            return y.replace(/(y+|M+|d+|h+|m+|s+)/g, function (v) {
+                return ((v.length > 1 ? "0" : "") + eval('z.' + v.slice(-1))).slice(-(v.length > 2 ? v.length : 2))
+            });
+        };
+        this.getAWeedkYMD = function () {//获得本周周一~周日的年月日
+            var ymdArr = [];
+            for (var i = 0; i < 7; i++) {
+                ymdArr[i] = [];
+                //ymdArr[i][0]=this.formatDate(new Date(this.nowYear, this.nowMonth, this.nowDay - this.nowDayOfWeek+i+1));
+                ymdArr[i][0] = this.date2str(new Date(this.nowYear, this.nowMonth, this.nowDay - this.nowDayOfWeek + i + 1), 'yyyy-MM-dd');
+                //ymdArr[i][1]=this.date2str(new Date(this.nowYear, this.nowMonth, this.nowDay - this.nowDayOfWeek+i+1), 'MM月dd日');
+            }
+            return ymdArr;
+        };
+        this.formatDate = function (date) {//格局化日期：yyyy-MM-dd
+            var myyear = date.getFullYear();
+            var mymonth = date.getMonth() + 1;
+            var myweekday = date.getDate();
+            if (mymonth < 10) {
+                mymonth = "0" + mymonth;
+            }
+            if (myweekday < 10) {
+                myweekday = "0" + myweekday;
+            }
+            return (myyear + "-" + mymonth + "-" + myweekday);
+        };
+        this.getWeekStartDate = function () { //获得本周的开端日期
+            var weekStartDate = new Date(this.nowYear, this.nowMonth, this.nowDay - this.nowDayOfWeek + 1);
+            return this.formatDate(weekStartDate);
+        }
+    };
+
+    var MySchedule = function () {
+
+        var initEvent = function () {
+            //点击切换周课表
+            $('#weekCalendarBtn').click(function () {
+                if ($(this).attr('class') == 'btn btn-success active') {
+                    return;
+                }
+                $('.mySchedule-filter .mySchedule-filter-btns button').each(function () {
+                    $(this).attr('class', 'btn btn-default');
+                });
+                $(this).attr('class', 'btn btn-success active');
+                weekCalendarView();
+                loadWeekScheduleData();
+            });
+            $('.filter-teacherInput').autoSearch('fst/findByCodeName_Faculty.action', {
+                fieldName: {id: 'facultyId', name: 'facultyName', code: 'facultyCode'}, searchKey: 'codeName',
+                select: function (e, ui) {
+                    teacherInput(ui.item.value, ui.item.label);
+                    if ($('.mySchedule-filter-btns #weekCalendarBtn').attr('class') == 'btn btn-success active') {
+                        loadWeekScheduleData();
+                    } else {
+                        var monday = _wd.getWeekStartDate();
+                        loadMyScheduleData(monday);
+                    }
+                }
+            });
+            //点击切换日课表
+            $('#dayCalendarBtn').click(function () {
+                if ($(this).attr('class') == 'btn btn-success active') {
+                    return;
+                }
+                $('.mySchedule-filter .mySchedule-filter-btns button').each(function () {
+                    $(this).attr('class', 'btn btn-default');
+                });
+                $(this).attr('class', 'btn btn-success active');
+                dayCalendarView();
+                _wd = new GetWeekDate(DateUtil.formatDate(new Date));
+                $('.mySchedule-table tbody').empty();
+                for (var i = 0; i < _sp.sections.length; i++) {
+                    $('.mySchedule-table tbody').append(createSectionsItem(_sp.sections[i], (i + 1)));
+                }
+                loadMyScheduleData(_sp.monday);
+            });
+            //点击上一周
+            $(document).on('click', '.prev-week', function (e) {
+                var nowDate = '';
+                $('.mySchedule-table thead tr td:not(:first)').each(function (index) {
+                    if ($(this).attr('tag') == '1') {
+                        nowDate = $(this).html();
+                    }
+                });
+                var prevDate = DateUtil.addDay(nowDate, -7);
+                _wd = new GetWeekDate(prevDate);
+                var weekYMD = _wd.getAWeedkYMD();
+                $('.mySchedule-table thead tr td:not(:first)').each(function (index) {
+                    $(this).html(weekYMD[index]);
+                });
+
+                $('.mySchedule-table tbody').empty();
+                for (var i = 0; i < _sp.sections.length; i++) {
+                    $('.mySchedule-table tbody').append(createSectionsItem(_sp.sections[i], (i + 1)));
+                }
+                var monday = _wd.getWeekStartDate();
+                loadMyScheduleData(monday);
+            });
+            //点击下一周
+            $(document).on('click', '.next-week', function (e) {
+                var nowDate = '';
+                $('.mySchedule-table thead tr td:not(:first)').each(function (index) {
+                    if ($(this).attr('tag') == '1') {
+                        nowDate = $(this).html();
+                    }
+                });
+                var nextDate = DateUtil.addDay(nowDate, +7);
+                _wd = new GetWeekDate(nextDate);
+                var weekYMD = _wd.getAWeedkYMD();
+                $('.mySchedule-table thead tr td:not(:first)').each(function (index) {
+                    $(this).html(weekYMD[index]);
+                });
+
+                $('.mySchedule-table tbody').empty();
+                for (var i = 0; i < _sp.sections.length; i++) {
+                    $('.mySchedule-table tbody').append(createSectionsItem(_sp.sections[i], (i + 1)));
+                }
+                var monday = _wd.getWeekStartDate();
+                loadMyScheduleData(monday);
+            });
+            //点击刷新
+            /*$('.mySchedule-refresh').click(function(){
+             if($('.mySchedule-filter-btns #weekCalendarBtn').attr('class') == 'btn btn-success active'){
+             loadWeekScheduleData();
+             }else{
+             var monday = _wd.getWeekStartDate();
+             loadMyScheduleData(monday);
+             }
+             });*/
+
+            //点击课表查看详情
+            $(document).on('click', '.mySchedule-table .td-class', function () {
+                _$this.find('.td-class').css('backgroundColor', '##5bc0de');
+                $(this).css('backgroundColor', '#f0ad4e');
+                var data = $(this).find('.td-class-content:visible').data('data');
+                _$this.find('.detail-content').empty().append(loadCalendarDetail(data));
+            });
+            //点击课表切换
+            $(document).on('click', '.td-class-count-span', function () {
+                $(this).parents('tbody').find('.td-class-count-span').css('fontWeight', 'initial');
+                var lessonCalendarId = $(this).attr('calendar');
+                var numText = parseInt($(this).text());
+                var secs = $(this).attr('secs').split(',');
+                var $nowTd = $(this).parents('td');
+                var $nowTr = $(this).parents('tr');
+                var index = $(this).parents('td').index();
+                $(this).css('fontWeight', '600');
+                $(this).parents('.td-class').find('.td-class-content').hide();
+                $(this).parents('.td-class').find('.td-class-content:eq(' + (numText - 1) + ')').show();
+                if (secs.length > 1) {
+                    $nowTd.attr('rowspan', '2');
+                    $nowTd.find('.td-class').css('height', '219px');
+                    $nowTr.next().find('td:eq(' + index + ')').hide();
+                } else {
+                    $nowTd.attr('rowspan', '1');
+                    $nowTd.find('.td-class').css('height', '109px');
+                    $nowTr.next().find('td:eq(' + index + ')').show();
+                }
+                for (var i = 0; i < _wd.weekLessonCalendar.length; i++) {
+                    if (lessonCalendarId == _wd.weekLessonCalendar[i].lessonCalendarId) {
+                        $('.detail-content').html(loadCalendarDetail(_wd.weekLessonCalendar[i]));
+                    }
+                }
+            });
+            //点击日课表
+            $(document).on('click', '.td-day-calendar', function () {
+                _$this.find('.td-day-calendar').css('backgroundColor', '##5bc0de');
+                $(this).css('backgroundColor', '#f0ad4e');
+                for (var i = 0; i < _wd.dayLessonCalendar.length; i++) {
+                    if ($(this).find('input[name=lessonCalendarId]').val() == _wd.dayLessonCalendar[i].lessonCalendarId) {
+                        $('.detail-content').html(loadCalendarDetail(_wd.dayLessonCalendar[i]));
+                    }
+                }
+            });
+        };
+        //加载星期
+        var loadWeekData = function () {
+            var options = {
+                url: 'tpm/findAll_LessonParamsSetting.action',
+                async: false,
+                data: {start: 0, limit: 999999},
+                success: function (result) {
+                    if (result.success) {
+                        for (var i = 0; i < result.data.length; i++) {
+                            if (result.data[i].lessonPlanDetail.defaultScheme == 1) {
+                                defaultParamsSetting_data = result.data[i];
+                                _sp.paramsSetting = defaultParamsSetting_data;
+                                var item = createWeekItem(defaultParamsSetting_data.lessonPlanDetail.daysNum);
+                                $('.mySchedule-table thead tr').append(item);
+                            }
+                        }
+                    }
+                }
+            };
+            Request.ajax(options);
+        };
+
+        var createWeekItem = function (data) {
+            var item = '<td height="50">' + Help.get_i18n('Sections') + '</td>';
+            var WeedkYMD = _wd.getAWeedkYMD();
+            for (var i = 0; i < parseInt(data); i++) {
+                if (_wd.nowDayOfWeek == (i + 1)) {
+                    item += '<td dateYMD="' + WeedkYMD[i] + '" tag="1" style="font-weight: bold;">' + formatChineseWeek((i + 1)) + '</td>';
+                } else {
+                    item += '<td dateYMD="' + WeedkYMD[i] + '">' + formatChineseWeek((i + 1)) + '</td>';
+                }
+            }
+            return item;
+        };
+
+        var loadSectionsData = function () {
+            var options = {
+                url: 'smd/findAll_Section.action',
+                async: false,
+                data: {start: 0, limit: 999999},
+                success: function (result) {
+                    if (result.success) {
+                        _sp.sections = result.data;
+                        $('.mySchedule-table tbody').empty();
+                        for (var i = 0; i < result.data.length; i++) {
+                            $('.mySchedule-table tbody').append(createSectionsItem(result.data[i], (i + 1)));
+                        }
+                    }
+                }
+            };
+            Request.ajax(options);
+        };
+
+        var createSectionsItem = function (data, seq) {
+            var td = '';
+            if (data.sectionId == '-1') {
+                td += '<td height="30" sec="-1" style="background: rgb(244, 244, 244);" colspan="' + (_sp.paramsSetting.lessonPlanDetail.daysNum + 1) + '"></td>';
+            } else if (data.sectionId == '-2') {
+                td += '<td height="30" sec="-2" style="background: rgb(244, 244, 244);" colspan="' + (_sp.paramsSetting.lessonPlanDetail.daysNum + 1) + '"></td>';
+            } else {
+                var beginTime = data.beginTime;
+                var endTime = data.endTime;
+                // td += '<td style="height: 110px;" align="center">'+ data.sectionName +'</td>';
+                td += '<td style="height: 110px;" align="center">' + beginTime.substr(0, beginTime.length - 3) + '-' + endTime.substr(0, endTime.length - 3) + '</td>';
+                var WeedkYMD = _wd.getAWeedkYMD();
+                for (var i = 0; i < _sp.paramsSetting.lessonPlanDetail.daysNum; i++) {
+                    var widthNum = 150 - _sp.paramsSetting.lessonPlanDetail.daysNum * 7;
+                    td += '<td class="mySchedule-td" width="' + widthNum + '" height="100" dateYMD="' + WeedkYMD[i] + '" sec="' + data.sectionId + '" cla="0"></td>';
+                }
+            }
+            var item = '<tr>' + td + '</tr>';
+            return item;
+        };
+        //加载日课表
+        var loadMyScheduleData = function (monday) {
+            emptyTableData();
+            $('.mySchedule-table tbody tr:first td:eq(1)').loading('2x');
+            var params = {monday: monday};
+            if (_sp.activeTeacherId) {
+                params.userId = _sp.activeTeacherId;
+            }
+            var options = {
+                url: 'tpm/findDayCalendarOfUser_LessonCalendar.action',
+                data: {jsonString: JSON.stringify(params)},
+                callback: function (result) {
+                    $('.mySchedule-table tbody tr:first td:eq(1)').loaded();
+                    _wd.dayLessonCalendar = result;
+                    for (var i = 0; i < result.length; i++) {
+                        createMyScheduleItem(result[i]);
+                    }
+                }
+            };
+            Request.post(options);
+        };
+
+        var createMyScheduleItem = function (data) {
+            var sections = data.sections.split(',');
+            $('.mySchedule-table tbody tr').each(function () {
+                $(this).find('td').each(function () {
+                    if (sections.length == 1) {
+                        if ($(this).attr('dateymd') == data.lessonDate && $(this).attr('sec') == sections[0]) {
+                            var item = '<div class="td-day-calendar" style="height: 109px;">' +
+                                '<input type="hidden" name="lessonCalendarId" value="' + data.lessonCalendarId + '">' +
+                                '<div>' + data.courseCode + '-' + (window.lang == "zh_CN" ? data.courseName : data.courseNameEn) + '</div>' +
+                                '<div>' + data.classRoomName + ' | ' + data.facultyName + '</div>' +
+                                '<div>' + data.week + '</div>' +
+                                '</div>';
+                            $(this).html(item);
+                            $(this).css({height: '110px', color: '#fff', verticalAlign: 'top'});
+                        }
+                    } else {
+                        if ($(this).attr('dateymd') == data.lessonDate && $(this).attr('sec') == sections[0]) {
+                            var item = '<div class="td-day-calendar" style="height: 219px;">' +
+                                '<input type="hidden" name="lessonCalendarId" value="' + data.lessonCalendarId + '">' +
+                                '<div>' + data.courseCode + '-' + (window.lang == "zh_CN" ? data.courseName : data.courseNameEn) + '</div>' +
+                                '<div>' + data.classRoomName + ' | ' + data.facultyName + '</div>' +
+                                '<div>' + data.week + '</div>' +
+                                '</div>';
+                            $(this).html(item);
+                            $(this).attr('rowspan', '2');
+                            $(this).css({height: '110px', color: '#fff', verticalAlign: 'top'});
+                            var col = $(this).index();
+                            var row = $(this).parent().index();
+                            $('.mySchedule-table tbody tr:eq(' + (row + 1) + ') td:eq(' + col + ')').hide();
+                        }
+                    }
+                });
+            });
+        };
+        //加载周课表数据
+        var loadWeekScheduleData = function () {
+            emptyTableData();
+            $('.mySchedule-table tbody tr:first td:eq(1)').loading('2x');
+            var params = {};
+            if(_term != null){
+                params['termId'] = _sp.nowTerm['termId'];
+            }
+            if(_params.hasOwnProperty('userId')){
+                params.studentId = _params['userId'];
+            }else if (__Session.userType == 1) {
+                params.studentId = __Session.userId;
+            } else {
+                if (_sp.activeTeacherId) {
+                    params.currFacultyId = _sp.activeTeacherId;
+                } else {
+                    params.currFacultyId = __Session.userId;
+                }
+            }
+            var options = {
+                url: 'tpm/findWeekCalendar_LessonCalendar.action',  //tpm/findList_LessonCalendar.action
+                data: {jsonString: JSON.stringify(params)},
+                callback: function (result) {
+                    $('.mySchedule-table tbody tr:first td:eq(1)').loaded();
+                    _wd.weekLessonCalendar = result;
+                    for (var i = 0; i < result.length; i++) {
+                        createWeekScheduleItem(result[i]);
+                    }
+                }
+            };
+            Request.post(options);
+        };
+
+        var createWeekScheduleItem = function (data) {
+            var sections = data.sections.split(',');
+            $('.mySchedule-table tbody tr').each(function () {
+                $(this).find('td:not(:first)').each(function () {
+                    if ($(this).attr('cla') == '0') {
+                        if (sections.length == 1) {
+                            if ($(this).attr('sec') == data.sections && $(this).index() == data.dayOfWeek) {
+                                var $item = $('' +
+                                    '<div class="td-class">' +
+                                    '   <div class="td-class-content">' +
+                                    '       <input type="hidden" name="lessonCalendarId" value="' + data.lessonCalendarId + '">' +
+                                    '       <div>' + data.courseCode + '-' + (window.lang == "zh_CN" ? data.courseName : data.courseNameEn) + '</div>' +
+                                    '       <div>' + data.classRoomName + ' | ' + data.facultyName + '</div>' +
+                                    '       <div>' + Help.formatNumberContinuous(data.week) + '</div>' +
+                                    '   </div>' +
+                                    '   <div class="td-class-count" style="position: absolute; bottom: 0px;cursor: pointer;">' +
+                                    '       <span class="td-class-count-span" calendar="' + data.lessonCalendarId + '" secs="' + data.sections + '">' + (parseInt($(this).attr('cla')) + 1) + '</span>' +
+                                    '   </div>' +
+                                    '</div>');
+                                $item.find('.td-class-content').data('data', data);
+                                $(this).append($item);
+                                $(this).attr('cla', (parseInt($(this).attr('cla')) + 1));
+                                $(this).css({height: '110px', color: '#fff', verticalAlign: 'top'});
+                                return false;
+                            }
+                        } else {
+                            if ($(this).attr('sec') == sections[0] && $(this).index() == data.dayOfWeek) {
+                                var $item = $('' +
+                                    '<div class="td-class" style="height: 109px;">' +
+                                    '   <div class="td-class-content">' +
+                                    '       <input type="hidden" name="lessonCalendarId" value="' + data.lessonCalendarId + '">' +
+                                    '       <div>' + data.courseCode + '-' + (window.lang == "zh_CN" ? data.courseName : data.courseNameEn) + '</div>' +
+                                    '       <div>' + data.classRoomName + ' | ' + data.facultyName + '</div>' +
+                                    '       <div>' + Help.formatNumberContinuous(data.week) + '</div>' +
+                                    '   </div>' +
+                                    '   <div class="td-class-count" style="position: absolute; bottom: 0px;cursor: pointer;">' +
+                                    '       <span class="td-class-count-span" calendar="' + data.lessonCalendarId + '" secs="' + data.sections + '">' + (parseInt($(this).attr('cla')) + 1) + '</span>' +
+                                    '   </div>' +
+                                    '</div>');
+                                $item.find('.td-class-content').data('data', data);
+                                $(this).html($item);
+                                $(this).attr('cla', (parseInt($(this).attr('cla')) + 1));
+                                $(this).css({height: '110px', color: '#fff', verticalAlign: 'top'});
+                                return false;
+                            }
+                        }
+                    } else {
+                        if (sections.length == 1) {
+                            if ($(this).attr('sec') == data.sections && $(this).index() == data.dayOfWeek) {
+                                $(this).find('.td-class-count').append('<span class="td-class-count-span" calendar="' + data.lessonCalendarId + '" secs="' + data.sections + '">' + (parseInt($(this).attr('cla')) + 1) + '</span>');
+                                var $item = $('' +
+                                    '<div class="td-class-content" style="display: none;">' +
+                                    '   <input type="hidden" name="lessonCalendarId" value="' + data.lessonCalendarId + '">' +
+                                    '   <div>' + data.courseCode + '-' + (window.lang == "zh_CN" ? data.courseName : data.courseNameEn) + '</div>' +
+                                    '   <div>' + data.classRoomName + ' | ' + data.facultyName + '</div>' +
+                                    '   <div>' + Help.formatNumberContinuous(data.week) + '</div>' +
+                                    '</div>');
+                                $item.data('data', data);
+                                $(this).find('.td-class-content').after($item);
+                                $(this).attr('cla', (parseInt($(this).attr('cla')) + 1));
+                                return false;
+                            }
+                        } else {
+                            if ($(this).attr('sec') == sections[0] && $(this).index() == data.dayOfWeek) {
+                                $(this).find('.td-class-count').append('<span class="td-class-count-span" calendar="' + data.lessonCalendarId + '" secs="' + data.sections + '">' + (parseInt($(this).attr('cla')) + 1) + '</span>');
+                                var $item = $('' +
+                                    '<div class="td-class-content" style="display: none;">' +
+                                    '   <input type="hidden" name="lessonCalendarId" value="' + data.lessonCalendarId + '">' +
+                                    '   <div>' + data.courseCode + '-' + (window.lang == "zh_CN" ? data.courseName : data.courseNameEn) + '</div>' +
+                                    '   <div>' + data.classRoomName + ' | ' + data.facultyName + '</div>' +
+                                    '   <div>' + Help.formatNumberContinuous(data.week) + '</div>' +
+                                    '</div>');
+                                $item.data('data', data);
+                                $(this).find('.td-class-content').after($item);
+                                $(this).attr('cla', (parseInt($(this).attr('cla')) + 1));
+                                return false;
+                            }
+                        }
+                    }
+                });
+            });
+        };
+
+        //日课表试图
+        var dayCalendarView = function () {
+            $('.mySchedule-table thead tr td:not(:first)').each(function () {
+                var week = $(this).text();
+                var dateymd = $(this).attr('dateymd');
+                $(this).html(dateymd);
+                $(this).attr('week', week);
+            });
+            var item = '<input type="hidden" id="wp">' +
+                '<i class="fa fa-chevron-left prev-week" title="' + Help.get_i18n('Last week') + '"></i> ' +
+                '<i class="fa fa-circle-o week-calendar selectDate"  title="' + Help.get_i18n('Select date') + '"></i> ' +
+                '<i class="fa fa-chevron-right next-week" title="' + Help.get_i18n('Next week') + '"></i> ';
+            $('.mySchedule-table thead tr td:first').html(item);
+            $('.mySchedule-table thead tr td:first').find(".selectDate").on("click", function () {
+                MySchedule.Wdate();
+            })
+        };
+        //周课表视图
+        var weekCalendarView = function () {
+            $('.mySchedule-table thead tr td:not(:first)').each(function () {
+                var week = $(this).attr('week');
+                $(this).html(week);
+            });
+            $('.mySchedule-table thead tr td:first').empty();
+        };
+
+        var Wdate = function () {
+            WdatePicker({
+                el: 'wp', isShowClear: false, isShowOK: false, isShowToday: false, dchanged: function () {
+                    var weekDay = $dp.cal.getNewDateStr();
+                    _wd = new GetWeekDate(weekDay);
+                    var weekymd = _wd.getAWeedkYMD();
+                    $('.mySchedule-table thead tr td:not(:first)').each(function (index) {
+                        $(this).html(weekymd[index]);
+                    });
+                    $('.mySchedule-table tbody').empty();
+                    for (var i = 0; i < _sp.sections.length; i++) {
+                        $('.mySchedule-table tbody').append(createSectionsItem(_sp.sections[i], (i + 1)));
+                    }
+                    var monday = _wd.getWeekStartDate();
+                    loadMyScheduleData(monday);
+                }
+            });
+        };
+
+        var teacherInput = function (id, name) {
+            $('.filter-teacherInput').val(name);
+            $('.filter-teacherInput').data('id', id);
+            _sp.activeTeacherId = id;
+        };
+
+        var emptyTableData = function () {
+            $('.mySchedule-table tbody tr').each(function () {
+                $(this).find('td:not(:first)').each(function () {
+                    $(this).empty();
+                    $(this).css({height: '100px', color: 'initial', verticalAlign: 'initial'});
+                    $(this).attr('rowspan', '1');
+                    $(this).attr('cla', '0');
+                    $(this).show();
+                });
+            });
+        };
+        //加载课表日历详情
+        var loadCalendarDetail = function (data) {
+            var requirement = '';
+            if (data.requirement) {
+                requirement = '<div class="form-group"><label>' + Help.get_i18n('Requirement') + ': ' + data.requirement + '</label></div>';
+            }
+            var $item = $('' +
+                '<div>' +
+                '   <div class="form-group">' +
+                '       <label style="font-size: 14px;font-weight: bold;color: #777;">' + data.courseCode + '-' + (window.lang == "zh_CN" ? data.courseName : data.courseNameEn) + '</label>' +
+                '   </div>' +
+                '   <div class="form-group">' +
+                '       <label>' + Help.get_i18n('Week') + ': ' + Help.formatNumberContinuous(data.week) + '</label>' +
+                '   </div>' +
+                '   <div class="form-group">' +
+                '       <label>' + Help.get_i18n('Weekly') + ': ' + data.dayOfWeek + '</label>' +
+                '   </div>' +
+                '   <div class="form-group">' +
+                '       <label>' + Help.get_i18n('Sections') + ': ' + data.sections + ' [' + data.sectionBeginTime + ']</label>' +
+                '   </div>' +
+                '   <div class="form-group">' +
+                '       <label>' + Help.get_i18n('Teacher') + ': ' + data.facultyName + '</label>' +
+                '   </div>' +
+                '   <div class="form-group">' +
+                '       <label>' + Help.get_i18n('Class Room') + ': ' + data.classRoomName + '</label>' +
+                '   </div>' +
+                requirement +
+                '</div>');
+            return $item;
+        };
+
+        var formatChineseWeek = function (data) {
+            switch (data) {
+                case 1 :
+                    return Help.get_i18n('Monday');
+                    break;
+                case 2 :
+                    return Help.get_i18n('Tuesday');
+                    break;
+                case 3 :
+                    return Help.get_i18n('Wednesday');
+                    break;
+                case 4 :
+                    return Help.get_i18n('Thursday');
+                    break;
+                case 5 :
+                    return Help.get_i18n('Friday');
+                    break;
+                case 6 :
+                    return Help.get_i18n('Saturday');
+                    break;
+                case 7 :
+                    return Help.get_i18n('Sunday');
+                    break;
+            }
+        };
+        /**
+         *
+         */
+        var loadTerm = function () {
+            Request.ajax({
+                url: 'smd/findAllByCombo_Term.action',
+                async:false,
+                data: {start: 0, limie: 999999},
+                success: function (result) {
+                    for (var i = 0; i < result.data.length; i++) {
+                        if (result.data[i].isOnTerm == 1) {
+                            _sp.nowTerm = result.data[i];
+                            var userName = _params.hasOwnProperty('userName')?_params['userName']:__Session.userName;
+                            var name = '<h4>' + _sp.nowTerm.termName + '课程表 (' + userName + ')</h4>';
+                            $('.mySchedule-content-title').empty().append(name);
+                            _term = result.data[i];
+                        }
+                    }
+                }
+            });
+        };
+
+        return {
+            init: function () {
+                _sp = new ScheduleParams();
+                _wd = new GetWeekDate(DateUtil.formatDate(new Date));
+
+                initEvent();
+
+                loadTerm();
+
+                loadWeekData();
+
+                loadSectionsData();
+
+                loadWeekScheduleData();
+
+            },
+            Wdate: function () {
+                Wdate();
+            }
+        }
+    }();
+
+    return {
+        view: function () {
+            return $(html);
+        },
+        init: function ($this, params) {
+            _$this = $this;
+            _params = params;
+            if (__Session.userType != 0) {
+                MySchedule.init();
+            } else {
+                $('.mySchedule-content').html('<div style="color: red;font-size: 16px;"><i class="fa fa-gavel"></i> 系统维护中...</div>');
+            }
+        }
+    };
+});

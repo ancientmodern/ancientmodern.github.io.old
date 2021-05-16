@@ -1,0 +1,65 @@
+.mySchedule-table{
+    width: 100%;
+    /*height: 500px;*/
+    margin-top: 10px;
+    border: 1px solid #ccc;
+    -webkit-box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+.mySchedule-table>thead>tr>td:first-child, .mySchedule-table>tbody>tr>td:first-child{
+    width: 70px;
+}
+.prev-week, .week-calendar, .next-week{
+    color: #ccc;
+    cursor: pointer;
+}
+.prev-week:hover, .week-calendar:hover, .next-week:hover{
+    color: black;
+}
+.mySchedule-refresh{
+    color: #ccc;
+}
+.mySchedule-refresh:hover{
+    color: black;
+}
+.td-class{
+    height: 109px;
+    background-color: #5bc0de;
+    border-radius: 4px;
+    padding: 5px;
+    position: relative;
+    cursor: pointer;
+}
+.td-class:hover{
+    background-color: #31b0d5;
+}
+.td-class-count span{
+    margin-left: 3px;
+}
+
+.detail-content{
+    margin-top: 10px;
+    padding: 10px;
+    /*border: 1px solid #ccc;*/
+    /*-webkit-box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);*/
+    /*box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);*/
+}
+
+.td-day-calendar{
+    background-color: #5bc0de;
+    border-radius: 4px;
+    padding: 5px;
+    cursor: pointer;
+}
+.td-day-calendar:hover{
+    background-color: #31b0d5;
+}
+.td-class-count-span{
+    color: #eee;
+}
+.td-class-count-span:hover{
+    font-size: 18px;
+}
+.detail-content label{
+    font-weight: normal;
+}

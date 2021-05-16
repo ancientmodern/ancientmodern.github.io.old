@@ -1,0 +1,61 @@
+.elect-turn-page{
+    padding: 20px;
+}
+.elect-turns-student{
+    margin-left: 0px;
+    margin-right:0px;
+    margin-top: 20px;
+    padding: 0px 10px;
+}
+.elect-turns-student .elect-turn-empty{
+    font-size: 28px;
+    margin-top: 20px;
+    margin-left: 100px;
+}
+.elect-turn-page .elect-turn-bottom{
+    width: 100%;
+    text-align: center;
+}
+
+.elect-turns-student .elect-turn{
+    margin: 15px 0px;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 10px;
+}
+.elect-turns-student .elect-turn .up{
+    margin-bottom: 10px;
+}
+.elect-turns-student .elect-turn .elect-turn-name{
+    font-weight: 700;
+    font-size: 20px;
+    margin-right: 10px;
+}
+.elect-turns-student .elect-turn ul li{
+    margin: 10px 0;
+}
+.elect-turns-student .elect-turn .circle-mode{
+    border: 1px solid #ddd;
+    height: 60px;
+    width: 60px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 2.7em;
+    font-size: 20px;
+    vertical-align: middle;
+    color: #fff;
+}
+.elect-turns-student .elect-turn .circle-mode.TIME{
+    background-color: #D9534D;
+}
+.elect-turns-student .elect-turn .circle-mode.POINT{
+    background-color: #337ab7;
+}
+.elect-turns-student .elect-turn .circle-mode.MASSELECTION{
+    background-color: #5bc0de;
+}
+.elect-turns-student .elect-turn .lesson-task-count{
+    cursor: pointer;
+}
+.elect-turns-student .elect-turn .elected-count{
+    cursor: pointer;
+}

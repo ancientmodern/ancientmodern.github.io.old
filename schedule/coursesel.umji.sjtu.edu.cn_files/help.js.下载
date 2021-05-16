@@ -1,0 +1,629 @@
+define(['jquery'], function ($) {
+
+    return {
+
+        get_dd: function (id) {
+            if (id && (typeof id == 'object') && id.constructor == Array) {
+                var result = '';
+                $.ajax({
+                    type: 'GET',
+                    async: false,
+                    dataType: 'json',
+                    url: 'sys/findByCategoryArray_DataDictionary.action',
+                    data: {
+                        jsonString: JSON.stringify({dataType: 'id', category: id})
+                    },
+                    success: function (res) {
+                        if (res.success) {
+                            result = res.data;
+                        }
+                    }
+                });
+                return result;
+            } else if (id && (typeof id == 'string') && id.constructor == String) {
+                var result = (__EMPTYID == id ) ? '' : __DataDictionary[id];
+                if (result === undefined) {
+                    return id;
+                } else {
+                    return result;
+                }
+            } else {
+                return '';
+            }
+        },
+
+        getRegionFullName: function (regionId) {
+            if (typeof regionId == 'undefined' || regionId == null || regionId.length == 0) {
+                return "";
+            }
+
+            var fullName = "";
+            $.ajax({
+                type: "GET",
+                async: false,
+                dataType: 'json',
+                url: "smd/findById_Region.action",
+                data: {
+                    jsonString: JSON.stringify({
+                        regionId: regionId
+                    })
+                },
+                success: function (data) {
+                    fullName = data.fullName;
+                }
+            });
+
+            return fullName;
+        },
+
+        render_dd: function (id, el) {
+            var result = (__EMPTYID == id ) ? '' : __DataDictionary[id];
+            if (result === undefined) {
+                el.html(id);
+            } else {
+                el.html(result);
+            }
+            return el;
+        },
+
+        append_dd: function (id, el) {
+            var result = (__EMPTYID == id ) ? '' : __DataDictionary[id];
+            if (result === undefined) {
+                el.append(id);
+            } else {
+                el.append(result);
+            }
+            return el;
+        },
+
+        append_i18n: function (key, el) {
+            $.ajax({
+                type: "get",
+                url: "sys/findByKey_I18nResource.action",
+                async: false,
+                data: {jsonString: JSON.stringify({key: key})},
+                success: function (data, textStatus) {
+                    el.append(data);
+                }
+            });
+            return el;
+        },
+
+        get_i18n: function (key) {
+            var getKey = key;
+            if (getKey) {
+                getKey = key.toLowerCase();
+            }
+            var result = __I18n[getKey];
+            if (result === undefined && key != '') {
+                return key;
+            } else {
+                return (key == '' || key === undefined) ? '' : result;
+            }
+
+        },
+
+        open: function (url) {
+            if (params.length > 0) {
+                var param = "";
+                for (var i = 0; i < params.length; i++) {
+                    param += params[i].name + '=' + params[i].value + "&";
+                }
+                url = url + "?" + param.substring(0, param.length - 1);
+            }
+            if (target === undefined) {
+                target = "_self";
+            }
+            window.open(url, target);
+        },
+
+        /**
+         * post方式打开页面
+         */
+        openPost: function (url, params, target) {
+            var $form = $('<form action="' + url + '" method="post" class="hidden"><input type="hidden" class="_csrf"></form>');
+            if (target) {
+                $form.attr('target', target);
+            }
+            $form.find('._csrf').attr({
+                'name': $('meta[name=_csrf_parameter]').attr('content'),
+                'value': $('meta[name=_csrf]').attr('content')
+            });
+            for (var i = 0; i < params.length; i++) {
+                var $input = $('<input type="hidden">').attr({'name': params[i].name}).attr({'value': params[i].value});
+                $form.append($input);
+            }
+            $('body').append($form);
+            $form.submit();
+        },
+
+        /**
+         * 打开报表页面
+         * @param title 报表页面标题
+         * @param reportKey 报表配置的key
+         * @param reportParams 报表链接中de参数
+         * @private
+         */
+        openReport: function (title, reportKey, reportParams) {
+            var url = "report/report?reportKey=" + reportKey;
+            for (var key in reportParams) {
+                url += '&' + key + '=' + reportParams[key];
+            }
+            // __ActiveModule('report-'+reportKey, title, url, true);
+            var config = {};
+            if (typeof title == 'object') {
+                config = title;
+            } else {
+                config['menuId'] = 'report-' + reportKey;
+                config['caption'] = title;
+                config['url'] = url;
+                config['reload'] = true;
+                config['iFrame'] = false;
+            }
+            __ActiveModule(config);
+        },
+
+
+        /*正则表达式解析alTag, 接收 或者文本类型，jQuery对象，*/
+        parseAlTag: function (html) {
+            var text = html;
+            if (typeof(html) == 'object') {
+                text = html.html();
+            }
+
+            //i18n
+            var reg = new RegExp("<al:i18n(\\s+)key=.*?>.*?</al:i18n>|<al:i18n(\\s+)key=.*?/>", "gm");
+            text = text.replace(reg, function (word) {
+                var regChild = new RegExp("\".*\"|\'.*\'", "g");
+                var txt = regChild.exec(word)[0];
+                return Help.get_i18n(txt.substring(1, txt.length - 1));
+            });
+
+            //security
+            reg = new RegExp("<al:security key=.*?>.*?</al:security>|<al:security key=.*?/>", "gm");
+            text = text.replace(reg, function (word) {
+                var regChild = new RegExp("\".*\"|\'.*\'", "g");
+                var txt = regChild.exec(word)[0];
+                return __Session[txt.substring(1, txt.length - 1)];
+            });
+
+            if (typeof(html) == 'object') {
+                html.html(text);
+                return html;
+            } else {
+                return text;
+            }
+        },
+
+        /*方法授权刷新*/
+        authRefresh: function (menuId, operation) {
+            if (menuId === undefined) {
+                menuId = $('.module-item.active').data('module');
+            }
+            var $auths;
+            if (operation === undefined) {
+                $auths = $('.module-item[data-module="' + menuId + '"] [data-auth]');
+            } else {
+                $auths = $('.module-item[data-module="' + menuId + '"] [data-auth="' + operation + '"]');
+            }
+            $auths.each(function () {
+                var bRemove = true;
+                var operationKey = $(this).attr('data-auth').split(";");
+                for (var i = 0; i < operationKey.length; i++) {
+                    if (operationKey[i] == '') continue;
+                    var auth = __Auth[menuId] || Help.authData(menuId) || [];
+                    for (var j = 0; j < auth.length; j++) {
+                        if (auth[j].operationKey == operationKey[i]) {
+                            if (auth[j].checked) {
+                                $(this).removeClass('ua-auth').show();
+                                bRemove = false;
+                            } else {
+                                bRemove = bRemove && true;
+                            }
+                        }
+                    }
+                }
+                if (bRemove) $(this).remove();
+            });
+        },
+
+        /**
+         * 获取指定菜单下的权限数据集合
+         * @param menuId
+         * @returns {*|Array}
+         */
+        authData: function (menuId) {
+            var authData = __Auth[menuId];
+            if (authData == undefined) {
+                __Auth[menuId] = [];
+                var options = {
+                    url: "sys/findOperationByMenuId_Permission.action",
+                    type: "GET",
+                    async: false,
+                    dataType: 'json',
+                    data: {jsonString: JSON.stringify({menuId: menuId})},
+                    success: function (result) {
+                        for (i = 0; i < result.length; i++) {
+                            if (result[i].checked) {
+                                __Auth[menuId].push(result[i]);
+                            }
+                        }
+
+                    }
+                };
+                $.ajax(options);
+                authData = __Auth[menuId];
+            }
+            return authData;
+        },
+
+        /**
+         * 获取具有权限的菜单数据
+         * @param menuIds 可以时Array或String
+         * @return 返回Object, {menuId:{}}
+         */
+        authMenu: function (menuIds) {
+            if (typeof (menuIds) == 'string') {
+                var menuId = menuIds;
+                menuIds = [];
+                menuIds.push(menuId);
+            }
+            var menuData = [];
+            var options = {
+                url: "sys/findMenuByMenuIds_Permission.action",
+                type: "GET",
+                async: false,
+                dataType: 'json',
+                data: {jsonString: JSON.stringify({menuIds: menuIds})},
+                success: function (result) {
+                    menuData = result;
+                }
+            };
+            $.ajax(options);
+            var resultMenu = {};
+            for (var i = 0; i < menuData.length; i++) {
+                resultMenu[menuData[i].menuId] = menuData[i];
+            }
+            return resultMenu;
+        },
+
+        /**
+         * 检查具体菜单下的权限
+         * @param operation
+         * @param menuId   //如果没有传入菜单Id，获取当前激活的菜单
+         * @returns {boolean}
+         */
+        authCheck: function (operation, menuId) {
+            if (menuId === undefined) {  //如果没有传入菜单Id，获取当前激活的菜单
+                menuId = $('.module-item.active').data('module');
+            }
+            var checked = false;
+            var authData = __Auth[menuId] || Help.authData(menuId) || [];
+            for (var j = 0; j < authData.length; j++) {
+                if (authData[j].operationKey == operation) {
+                    checked = authData[j].checked;
+                }
+            }
+            return checked;
+        },
+
+        moduleHeight: function () {
+            return $(window).height() - 100;
+        },
+
+        printPage: function (selector, hidePageHeader, seesaw, around) {
+
+            var pagesetup_null = function () {
+                var hkey_root, hkey_path, hkey_key;
+                hkey_root = "HKEY_CURRENT_USER";
+                hkey_path = "\\Software\\Microsoft\\Internet Explorer\\PageSetup\\";
+                try {
+                    var RegWsh = new ActiveXObject("WScript.Shell");
+                    hkey_key = "header";
+                    RegWsh.RegWrite(hkey_root + hkey_path + hkey_key, "");
+                    hkey_key = "footer";
+                    RegWsh.RegWrite(hkey_root + hkey_path + hkey_key, "");
+                } catch (e) {
+                }
+            }
+
+            var pagesetup_default = function () {
+                var hkey_root, hkey_path, hkey_key;
+                hkey_root = "HKEY_CURRENT_USER";
+                hkey_path = "\\Software\\Microsoft\\Internet Explorer\\PageSetup\\";
+                try {
+                    var RegWsh = new ActiveXObject("WScript.Shell");
+                    hkey_key = "header";
+                    RegWsh.RegWrite(hkey_root + hkey_path + hkey_key, "&w&b页码，&p/&P");
+                    hkey_key = "footer";
+                    RegWsh.RegWrite(hkey_root + hkey_path + hkey_key, "&u&b&d");
+                } catch (e) {
+                }
+            }
+
+
+            var isIE = function () {
+                return ("ActiveXObject" in window);
+            }
+
+
+            if (!seesaw) {
+                seesaw = 50;
+            }
+            if (!around) {
+                around = 50;
+            }
+
+            if (hidePageHeader) {
+                $('body').append('<style media="print">@page {size: auto;  margin: 0mm; }</style>');
+                if (isIE()) {
+                    pagesetup_null();
+                }
+            } else {
+                $('body').append('<style media="print">@page {size: auto;  margin: 50mm; }</style>');
+                if (isIE()) {
+                    pagesetup_default();
+                }
+            }
+
+            if (!selector) {
+                selector = 'body';
+            } else if (typeof selector == 'object' && selector.print) {
+                selector.find('a').each(function () {
+                    $(this).attr('hrefbak', $(this).attr('href'));
+                    $(this).removeAttr('href');
+                })
+                var display = selector.css('display');
+                var margin = selector.css('margin');
+                selector.css('margin', seesaw + 'px ' + around + 'px');
+                selector.css('display', 'block');
+                selector.print({
+                    globalStyles: true,
+                    addGlobalStyles: true,
+                    stylesheet: null,
+                    rejectWindow: true,
+                    noPrintSelector: '.no-print',
+                    iframe: true,
+                    append: null,
+                    prepend: null
+                });
+                selector.css('margin', margin);
+                selector.css('display', display);
+                selector.find('a').each(function () {
+                    $(this).attr('href', $(this).attr('hrefbak'));
+                    $(this).removeAttr('hrefbak');
+                });
+                return true;
+            }
+            $(selector).find('a').each(function () {
+                $(this).attr('hrefbak', $(this).attr('href'));
+                $(this).removeAttr('href');
+            })
+            var margin = $(selector).css('margin');
+            var display = $(selector).css('display');
+            $(selector).css('margin', seesaw + 'px ' + around + 'px');
+            $(selector).css('display', 'block');
+            $(selector).print({
+                globalStyles: true,
+                addGlobalStyles: true,
+                stylesheet: null,
+                rejectWindow: true,
+                noPrintSelector: '.no-print',
+                iframe: true,
+                append: null,
+                prepend: null
+            });
+            $(selector).css('margin', margin);
+            $(selector).css('display', display);
+            $(selector).find('a').each(function () {
+                $(this).attr('href', $(this).attr('hrefbak'));
+                $(this).removeAttr('hrefbak');
+            })
+        },
+
+        /**
+         * 绘制文字到canvas，判断换行位置，和设置canvas高度
+         */
+        canvasWrapText: function (options) {
+            var settings = {
+                canvas: document.createElement("canvas"), //canvas对象，必填，不填写默认创建一个canvas
+                canvasWidth: 260, //canvas的宽度
+                canvasMinHeight: 340, //canvas的最小高度,如果不需要可以设置为0
+                drawStartX: 5, //绘制字符串起始x坐标
+                drawStartY: 15, //绘制字符串起始y坐标
+                lineHeight: 30, //文字的行高
+                font: "26px 'Microsoft Yahei'", //文字样式
+                text: " ", //需要绘制的文本
+                drawWidth: 260, //文字显示的宽度
+                color: "#666", //文字的颜色
+                backgroundColor: "#2eceff" //背景颜色
+            };
+
+            //将传入的配置覆盖掉默认配置
+            if (!!options && typeof options === "object") {
+                for (var i in options) {
+                    settings[i] = options[i];
+                }
+            }
+
+            //获取2d的上线文开始设置相关属性
+            var canvas = settings.canvas;
+            canvas.width = settings.canvasWidth;
+            var ctx = canvas.getContext("2d");
+
+            //绘制文字
+            ctx.font = settings.font;
+            ctx.fillStyle = settings.color;
+            var lineWidth = 0; //当前行的绘制的宽度
+            var lastTextIndex = 0; //已经绘制上canvas最后的一个字符的下标
+            //由于改变canvas 的高度会导致绘制的纹理被清空，所以，不预先绘制，先放入到一个数组当中
+            var arr = [];
+            for (var i = 0; i < settings.text.length; i++) {
+                //获取当前的截取的字符串的宽度
+                lineWidth = ctx.measureText(settings.text.substr(lastTextIndex, i - lastTextIndex)).width;
+
+                if (lineWidth > settings.drawWidth) {
+                    //判断最后一位是否是标点符号
+                    if (judgePunctuationMarks(settings.text[i - 1])) {
+                        arr.push(settings.text.substr(lastTextIndex, i - lastTextIndex));
+                        lastTextIndex = i;
+                    } else {
+                        arr.push(settings.text.substr(lastTextIndex, i - lastTextIndex - 1));
+                        lastTextIndex = i - 1;
+                    }
+                }
+                if (settings.text.substr(i, 5) == '<br/>') {
+                    arr.push(settings.text.substr(lastTextIndex, i - lastTextIndex));
+                    lastTextIndex = i + 5;
+                }
+                //将最后多余的一部分添加到数组
+                if (i === settings.text.length - 1) {
+                    arr.push(settings.text.substr(lastTextIndex, i - lastTextIndex + 1));
+                }
+            }
+
+            //根据arr的长度设置canvas的高度
+            canvas.height = arr.length * settings.lineHeight;
+            //判断是否达到最小高度
+            if (canvas.height < settings.canvasMinHeight) {
+                //重新设置起始位置
+                settings.drawStartY += 20;
+                canvas.height = settings.canvasMinHeight;
+            }
+
+            //绘制背景色
+            ctx.fillStyle = settings.backgroundColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            //设置字体颜色
+            ctx.font = settings.font;
+            ctx.textBaseline = "middle";
+            ctx.fillStyle = settings.color;
+            for (var i = 0; i < arr.length; i++) {
+                ctx.fillText(arr[i], settings.drawStartX, settings.drawStartY + i * settings.lineHeight);
+            }
+
+            //判断是否是需要避开的标签符号
+            function judgePunctuationMarks(value) {
+                var arr = [".", ",", ";", "?", "!", ":", "\"", "，", "。", "？", "！", "；", "：", "、"];
+                for (var i = 0; i < arr.length; i++) {
+                    if (value === arr[i]) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            return canvas.toDataURL();
+        },
+
+        /**
+         * 下载文件
+         * @param {Object} option
+         * 该参数为Object对象，可传入键 fileId 或者 filePath。根据具体的使用场景，只需传入一个值即可。
+         * {
+	     * 	 filePath:'',  文件的绝对路径
+	     * 	 fileId:''     文件存储在数据库中的ID
+	     * }
+         */
+        downloadFile: function (option) {
+            if (!option.hasOwnProperty("filePath") && !option.hasOwnProperty("fileId")) {
+                return false;
+            }
+            var url = "";
+            if (option.hasOwnProperty("filePath")) {
+                url = "smd/download_Attachment.action?filePath=" + option.filePath;
+            } else if (option.hasOwnProperty("fileId")) {
+                url = "smd/download_Attachment.action?fileId=" + option.fileId;
+            }
+            window.location.href = url;
+        },
+
+        /**
+         * 下载模板文件
+         * @param {Object} option
+         * 该参数为Object对象，可传入键 fileId 或者 filePath。根据具体的使用场景，只需传入一个值即可。
+         * {
+	     * 	 filePath:'',  文件的绝对路径
+	     * 	 fileId:''     文件存储在数据库中的ID
+	     * }
+         */
+        downloadTemplate: function (option) {
+            if (!option.hasOwnProperty("newFileName") && !option.hasOwnProperty("fileId")) {
+                return false;
+            }
+            var url = "smd/downloadTemplate_Attachment.action?fileId=" + option.fileId;
+            if (option.hasOwnProperty("newFileName")) {
+                url += '&newFileName' + option.newFileName;
+            }
+            window.location.href = url;
+        },
+
+
+        /**
+         * 在线打开文件
+         * @param {Object} option
+         * 该参数为Object对象，可传入键 fileId 或者 filePath。根据具体的使用场景，只需传入一个值即可。
+         * {
+	     * 	 filePath:'',  文件的绝对路径
+	     * 	 fileId:''     文件存储在数据库中的ID
+	     * }
+         */
+        openFile: function (option) {
+            if (!option.hasOwnProperty("filePath") && !option.hasOwnProperty("fileId")) {
+                return false;
+            }
+            if (option.hasOwnProperty("filePath")) {
+                var filePath = option.filePath;
+                if ("pdf" == filePath.substring(filePath.lastIndexOf('.') + 1)) {
+                    var url = "generic/web/viewer.html?t=" + (new Date().getTime()) + "&filePath=" + filePath;
+                    $('body').append($('<a href="' + url + '" target="_blank" id="openWin"></a>'));
+                    document.getElementById("openWin").click();
+                    $('#openWin').remove();
+                } else {
+                    window.location.href = "smd/download_Attachment.action?t=" + (new Date().getTime()) + "&filePath=" + filePath;
+                }
+            } else if (option.hasOwnProperty("fileId")) {
+                Request.ajax({
+                    url: 'smd/findFileById_Attachment.action?fileId=' + option.fileId,
+                    success: function (result) {
+                        if (result.success) {
+                            var file = result.data;
+                            var fileTitle = file.fileTitle;
+                            if ("pdf" == fileTitle.substring(fileTitle.lastIndexOf('.') + 1)) {
+                                var url = "generic/web/viewer.html?t=" + (new Date().getTime()) + "&fileId=" + file.fileId;
+                                $('body').append($('<a href="' + url + '" target="_blank" id="openWin"></a>'));
+                                document.getElementById("openWin").click();
+                                $('#openWin').remove();
+                            } else {
+                                window.location.href = "smd/download_Attachment.action?t=" + (new Date().getTime()) + "&fileId=" + file.fileId;
+                            }
+                        }
+                    }
+                });
+            }
+        },
+
+        /**
+         * 获取需要下载文件的地址
+         * @param option
+         * @returns {*}
+         */
+        getFile: function (option) {
+            if (!option.hasOwnProperty("filePath") && !option.hasOwnProperty("fileId")) {
+                return false;
+            }
+            if (option.hasOwnProperty("filePath")) {
+                return "smd/download_Attachment.action?filePath=" + filePath;
+            } else if (option.hasOwnProperty("fileId")) {
+                return "smd/download_Attachment.action?fileId=" + file.fileId;
+            }
+        }
+    };
+});
+
+
+
+
+
+

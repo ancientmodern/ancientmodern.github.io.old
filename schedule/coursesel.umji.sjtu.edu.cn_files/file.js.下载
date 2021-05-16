@@ -1,0 +1,508 @@
+(function (factory) {
+    if (typeof define === "function" && define.amd) {
+        define(["jquery",'jquery.form', 'uuid', 'map', "css!../../front/plugins/file/file.css"], factory);
+    } else {
+        var link = document.createElement('link');
+        link.rel = "stylesheet"
+        link.async = false;
+        link.href = 'front/plugins/file/file.css';
+        document.getElementsByTagName('head')[0].appendChild(link);
+
+        var uuid = document.createElement('script');
+        uuid.async = false;
+        uuid.type = 'text/javascript';
+        uuid.src = 'resources/js/uuid.js';
+        document.getElementsByTagName('head')[0].appendChild(uuid);
+
+        var map = document.createElement('script');
+        map.async = false;
+        map.type = 'text/javascript';
+        map.src = 'resources/js/map.js';
+        document.getElementsByTagName('head')[0].appendChild(map);
+
+        factory(jQuery);
+    }
+}
+(function ($) {
+    var File = function (element, options) {
+        this.$element = $(element).find('.file-container');
+        this.options = options;
+
+        this.$element.on('click', '.file-item-remove', $.proxy(function (ev) {
+            this.removeFile($(ev.currentTarget));
+        }, this));
+
+        if (this.options.progress) {
+            this.fileIds = new Map();
+            this.timerMap = new Map();
+        }
+
+        this.render();
+    };
+
+    File.prototype = {
+        constructor: File,
+
+        render: function () {
+            this.init();
+        },
+        init: function () {
+            var self = this;
+
+            if ($.support.leadingWhitespace == false) {
+                self.createFile_ie(false,true);
+            } else {
+                self.createFile(false,true);
+            }
+            if (self.options.multi) {
+                self.addFile();
+            }
+        },
+        validate:function (target) {
+            var self = this;
+            var fileSize = 0;
+            if ($.support.leadingWhitespace == false && !target.files) {
+                var filePath = target.value;
+                var fileSystem = new ActiveXObject("Scripting.FileSystemObject");
+                var file = fileSystem.GetFile(filePath);
+                fileSize = file.Size;
+            } else {
+                fileSize = target.files[0].size;
+            }
+            //如果没有文件类型和大小限制,则验证通过
+            if(!self.options.acceptFileSize && self.options.acceptFileType){
+                return true;
+            }
+            if(self.options.acceptFileSize && fileSize > self.options.acceptFileSize){
+                alert(self.options.acceptFileTip?self.options.acceptFileTip:"文件不合要求!");
+                target.value="";
+                return false;
+            }
+
+            if(self.options.acceptFileType){
+                var name=target.value;
+                var fileSuffix = name.substring(name.lastIndexOf(".")+1).toLowerCase();
+                if(self.options.acceptFileType.indexOf(fileSuffix)<0){
+                    alert(self.options.acceptFileTip?self.options.acceptFileTip:"文件不合要求!");
+                    target.value="";
+                    return false;
+                }
+            }
+            return true;
+        },
+        createFile: function (activate,isInit) {
+            var self = this;
+            var $fileItem = $("<div class='file-item'></div>");
+            var $fileInput = $('<input type="file" class="hidden"/>').attr('name', self.options.name);
+            if (self.options.progress) {
+                var uuid = new UUID().toString();
+                var uploadUrl = 'sys/upload_FileProgress.action?_progress=_progress&_statusId=' + uuid;
+                if(self.options.hasOwnProperty('url')){
+                    if(self.options.url.toString().lastIndexOf("?") != -1){
+                        uploadUrl = self.options.url+'&_progress=_progress&_statusId=' + uuid;
+                    }else {
+                        uploadUrl = self.options.url+'?_progress=_progress&_statusId=' + uuid;
+                    }
+                }
+                $fileInput = $('<form action="'+uploadUrl+'" method="post" enctype="multipart/form-data"><input name="upload" id="'+uuid+'" type="file" class="hidden"/></form>');
+            }
+            var $fileItemName = $('<div class="file-item-name pull-left"></div>').html(self.getI18n('upload'));
+            var $fileItemRemove = $('<div class="file-item-remove pull-right"><i class="fa fa-trash"></i></div>').attr('title', self.getI18n('remove'));
+
+            //添加文件类型限制属性
+            if(self.options.acceptFileType){
+                $fileInput.attr('accept',self.options.acceptFileType);
+            }
+            //上传文件提示
+            if(self.options.acceptFileTip){
+                $fileItemName.al_popover({
+                    placement: 'bottom',
+                    container: 'body',
+                    trigger: 'hover',
+                    html: true,
+                    content: function () {
+                        var $div = $('<div>'+self.options.acceptFileTip+'</div>');
+                        return $div;
+                    }
+                });
+            }
+
+
+            $fileItemName.click(function () {
+                $(this).parent().find('input[type="file"]').click();
+            });
+            $fileItem.append($fileItemName).append($fileItemRemove).append($fileInput);
+
+            $fileItem.find('input').change(function (e) {
+                var that = this;
+                var file = e.currentTarget.files[0];
+                if (!file) {
+                    $(this).parents('.file-item').find('.file-item-name').html(self.getI18n('upload'));
+                    return;
+                }
+
+                if(!self.validate( e.currentTarget)){
+                    return;
+                }
+                $(this).parents('.file-item').find('.file-item-name').html('<p>'+file.name+'</p>');
+                //判断progress参数,意义为是否是即时上传文件
+                if (self.options.progress) {
+                    $fileItemName.unbind('click');
+                    $fileItemRemove.hide();
+                    var uuid = that.id
+                    var html =
+                        '<div class="progress progress-striped active">' +
+                        '<div class="progress-bar progress-bar-success" role="progressbar"' +
+                        ' aria-valuemin="0" aria-valuemax="100"' +
+                        'style="width: 0%;">' +
+                        '</div>' +
+                        '</div>';
+                    $(this).parents('.file-item').find('.file-item-name').append(html);
+                    var $form = $(that).parents('form');
+                    $form.ajaxSubmit({
+                        beforeSubmit: function (a, form, options) {
+                        },
+                        clearForm: true,
+                        success: function (res) {
+                            $fileItemRemove.show();
+                            res = JSON.parse(res);
+                            if (res.success) {
+                                $fileItem.data('uuid', uuid);
+                                self.fileIds.put(uuid, res.data);
+                                $.tip.success(Help.get_i18n('Save successfully!'), 'bottom-right');
+                                //文件上传完成后的回调函数,意味着进度条达到100%之后,文件才上传成功
+                                //导入成功之后关闭窗口
+                                $('.file-import-popover-header-close').trigger('click');
+
+                                if (self.options.callback) {
+                                    self.options.callback.call(self,res,{
+                                        _raw:JSON.stringify(res)
+                                    });
+                                }
+                                if (self.options.success) {
+                                    self.options.success.call(self,res,{
+                                        _raw:JSON.stringify(res)
+                                    });
+                                }
+
+                            } else {
+                                $fileItem.find('.file-item-name').html(file.name+'<span class="file-status-tip">('+Help.get_i18n('Upload failed, please try again!')+')</span>').append("<i class='fa fa-exclamation-triangle text-danger file-status'></i>");
+                                $fileItemName.click(function () {
+                                    $(this).parents('.file-item').find('input[type="file"]').click();
+                                });
+                            }
+                        }
+                    });
+                    var timer = setInterval(self.fileProgressTimer, 300,self,that);
+                    self.timerMap.put(uuid, timer);
+                }else{
+                    if (self.options.callback) {
+                        self.options.callback.call(self, file);
+                    }
+                    if (self.options.success) {
+                        self.options.success.call(self, file);
+                    }
+                }
+            });
+
+            if (self.options.multi && !isInit) {
+                $fileItem.insertBefore('.file-item-add');
+            } else {
+                self.$element.append($fileItem);
+            }
+            if (activate) {
+                $fileItem.find('input[type="file"]').click();
+            }
+        },
+        createFile_ie: function (activate,isInit) {
+            var self = this;
+            var $fileItem = $("<div class='file-item'></div>");
+            var $fileInput = $('<input type="file"/>').attr('name', self.options.name);
+            var $fileItemName = $('<div class="file-item-name pull-left"></div>').html($fileInput);
+            var $fileItemRemove = $('<div class="file-item-remove pull-right"><i class="fa fa-trash"></i></div>').attr('title', self.getI18n('remove'));
+
+            $fileItem.append($fileItemName).append($fileItemRemove);
+
+            //添加文件类型限制属性
+            if(self.options.acceptFileType){
+                $fileInput.attr('accept',self.options.acceptFileType);
+            }
+
+            //上传文件的提示
+            if(self.options.acceptFileTip){
+                $fileItemName.al_popover({
+                    placement: 'bottom',
+                    container: 'body',
+                    trigger: 'hover',
+                    html: true,
+                    content: function () {
+                        var $div = $('<div>'+self.options.acceptFileTypeTip+'</div>');
+                        return $div;
+                    }
+                });
+            }
+
+            if (self.options.multi && !isInit) {
+                $fileItem.insertBefore('.file-item-add');
+            } else {
+                self.$element.append($fileItem);
+            }
+            if (activate) {
+                $fileItem.find('input[type="file"]').click();
+            }
+        },
+        fileProgressTimer: function(self,fileInput) {
+            $.ajax({
+                url: 'sys/getStatus_FileProgress.action?_statusId=' + fileInput.id,
+                dataType: 'json',
+                method: 'GET',
+                success: function (res) {
+                    var input = fileInput;
+                    var fileUUID = fileInput.id;
+                    var $fileItem = $(input).parents('.file-item');
+                    if (res.success || res.errDesc == 'status is not found!') {
+                        if (parseInt(res.data.bytes) == parseInt(res.data.contentLength)) {
+                            clearInterval(self.timerMap.get(fileUUID));
+                            self.clearFileProgress(fileUUID);
+                            var func = function (fileUUID) {
+                                if (self.fileIds.containsKey(fileUUID)) {
+                                    $fileItem.find('.file-item-name').find('file-status').remove();
+                                    $fileItem.find('.file-item-name').append("<i class='fa fa-check text-success file-status'></i>");
+                                } else {
+                                    setTimeout(func, 700)
+                                }
+                            };
+                            setTimeout(func, 700,fileUUID)
+                        }
+                        var persent = parseFloat(res.data.bytes) / parseFloat(res.data.contentLength) * 100;
+                        $(input).parents('.file-item').find('.file-item-name').find("div.progress-bar").width(persent + "%");
+                    } else {
+                        clearInterval(self.timerMap.get(fileUUID));
+                        $fileItem.find('.file-item-name').find('file-status').remove();
+                        $fileItem.find('.file-item-remove').show();
+                        $fileItem.find('.file-item-name').find('p').append('<span class="file-status-tip">('+Help.get_i18n('Upload failed, please try again!')+')</span>');
+                        $fileItem.find('.file-item-name').append("<i class='fa fa-exclamation-triangle text-danger file-status'></i>");
+                        $fileItem.find('.file-item-name').click(function () {
+                            $(this).parents('.file-item').find('input[type="file"]').click();
+                        });
+                    }
+                },
+                error: function (err) {
+                    var $fileItem = $(fileInput).parents('.file-item');
+                    clearInterval(self.timerMap.get(fileInput.id));
+                    $fileItem.find('.file-item-name').removeClass('file-status');
+                    $fileItem.find('.file-item-name').find('p').append('<span class="file-status-tip">('+Help.get_i18n('Upload failed, please try again!')+')</span>');
+                    $fileItem.find('.file-item-name').append("<i class='fa fa-exclamation-triangle text-danger file-status'></i>");
+                    $fileItem.find('.file-item-remove').show();
+                    $fileItem.find('.file-item-name').click(function () {
+                        $(this).parents('.file-item').find('input[type="file"]').click();
+                    });
+                }
+            });
+        },
+        clearFileProgress:function (uuid) {
+            $.ajax({
+                url: 'sys/clearStatus_FileProgress.action?_statusId=' + uuid,
+                dataType: 'json',
+                method: 'POST',
+                success: function (res) {},
+                error: function (err) {}
+            });
+        },
+        addFile: function () {
+            var self = this;
+            var $fileItem = $("<div class='file-item-add'></div>").html('<i class="fa fa-plus"></i>').attr('title',self.getI18n('add'));
+            $fileItem.click(function (e) {
+                if ($.support.leadingWhitespace == false) {
+                    self.createFile_ie(true);
+                } else {
+                    self.createFile(true);
+                }
+            });
+            self.$element.append($fileItem);
+        },
+        getFileIds: function () {
+            if (!this.options.progress) {
+                return null;
+            }
+            return this.fileIds.values();
+        },
+        removeFile: function ($el) {
+            var self = this;
+            $el.parents('.file-item').slideUp(function () {
+                if (self.options.progress) {
+                    var uuid = $el.parents('.file-item').data('uuid');
+                    var fileId = '';
+                    if (self.fileIds.containsKey(uuid)) {
+                        fileId = self.fileIds.get(uuid);
+                        self.fileIds.remove(uuid)
+                    }
+                    $.get('sys/removeFile_FileProgress.action?fileId=' + fileId)
+                }
+
+                $el.parents('.file-item').remove();
+                if (!self.options.multi && self.$element.find('.file-item').length == 0) {
+                    self.$element.empty();
+                    self.init();
+                }
+
+            });
+        },
+        getI18n: function (key) {
+            var self = this;
+            var label = self.i18n[window.lang][key];
+            return label ? label : "";
+        },
+        getValue: function () {
+            var self = this;
+            var result = new Array();
+            self.$element.find('.file-item').each(function () {
+                if ($(this).find('[name="' + self.options.name + '"]').val() != '') {
+                    result.push($(this).find('.file-item-name').text());
+                }
+            });
+            return result;
+        }
+
+    };
+    File.prototype.i18n = new Array();
+    File.prototype.i18n['en_US'] = {
+        add: 'Add file',
+        remove: 'Remove file',
+        upload: 'Chose file'
+    }
+    File.prototype.i18n['zh_CN'] = {
+        add: '增加文件',
+        remove: '删除文件',
+        upload: '选择文件上传进行导入'
+    }
+
+    // TREE PLUGIN DEFINITION
+    $.fn.file = function (option, value) {
+        var methodReturn;
+
+        var $set = this.each(function () {
+            var $this = $(this);
+            var data = $this.data('file');
+            var options = typeof option === 'object' && option;
+
+            $this.data('file', (data = new File(this, options)));
+            if (typeof option === 'string') methodReturn = data[option](value);
+        });
+
+        return (methodReturn === undefined) ? $set : methodReturn;
+    };
+
+    $.fn.import = function (option, value) {
+        var $set = this.each(function () {
+            var $this = $(this);
+            var options = typeof option === 'object' && option;
+            $this.off('click').on('click',options,function (e) {
+                $('body').find('.file-import-popover').remove();
+                $('body').find('.file-import-popover-mask').remove();
+                var options = e.data;
+                var title = options.hasOwnProperty("title")?options.title:Help.get_i18n('Import');
+                var $popover = $('<div class="file-import-popover">'
+                    + '		 			<div class="file-import-popover-header">'
+                    + '					    <a href="javascript:void(0);" class="file-import-popover-header-close">×</a>'
+                    + '					    <h3 class="file-import-popover-header-title">'+title+'</h3>'
+                    + '				    </div>'
+                    + '				<div class="file-import-popover-content">'
+                    + '				</div>'
+                    + '			</div>'
+                    + '			<div class="file-import-popover-mask"></div>');
+                $('body').append($popover);
+                $popover.find('.file-import-popover-header-close').on('click',function () {
+                    $('body').find('.file-import-popover').remove();
+                    $('body').find('.file-import-popover-mask').remove();
+                });
+                if(options.hasOwnProperty('template')){
+                    $popover.find('.file-import-popover-content').append('<span class="file-import-popover-tip"> * '+Help.get_i18n('Please import the data according to the various templates provided below.')+'</span>');
+                    var template = options['template'];
+                    if (template.constructor == Array) {
+                        for(var t=0;t<template.length;t++){
+                            var item = template[t];
+                            var templateUrl = item.templateUrl;
+                            var templateName = item.hasOwnProperty('templateName')?item.templateName:Help.get_i18n('Download templates');
+                            var $importItem = $('<div class="file-import-item">' +
+                                '<div class="file-import-item-template"><a href="'+templateUrl+'" target="_blank">'+templateName+'</a></div>' +
+                                '<div class="file-import-item-file"></div></div>');
+                            $popover.find('.file-import-popover-content').append($importItem);
+                            $importItem.find('.file-import-item-file').al_file({
+                                name: item.hasOwnProperty('field')?item['field']:'upload',
+                                url:item.url,
+                                progress: true,
+                                multi: false,
+                                callback:item.callback,
+                                success:item.success
+                            });
+                        }
+                    }else{
+                        var templateUrl = template.templateUrl;
+                        var templateName = template.hasOwnProperty('templateName')?template.templateName:Help.get_i18n('Download templates');
+                        var $importItem = $('<div class="file-import-item">' +
+                            '<div class="file-import-item-template"><a href="'+templateUrl+'" target="_blank">'+templateName+'</a></div>' +
+                            '<div class="file-import-item-file"></div></div>');
+                        $popover.find('.file-import-popover-content').append($importItem);
+                        $importItem.find('.file-import-item-file').al_file({
+                            name: options.hasOwnProperty('field')?option['field']:'upload',
+                            url:template.url,
+                            progress: true,
+                            multi: false,
+                            callback:template.callback,
+                            success:template.success
+                        });
+                    }
+                }else{
+                    var url = options.url;
+                    $popover.find('.file-import-popover-content').append('<div class="file-import-item"></div>');
+                    $popover.find('.file-import-item').al_file({
+                        name: options.hasOwnProperty('field')?option['field']:'upload',
+                        url:url,
+                        progress: true,
+                        multi: false,
+                        callback:options.callback,
+                        success:options.success
+                    });
+                }
+            });
+        });
+
+        return $set;
+    };
+
+    $.fn.file.defaults = {
+        name: 'upload',
+        multi: false,
+        progress: false,
+        lang: 'zh_CN'
+    };
+
+    $.fn.file.Constructor = File;
+
+    // 上传文件
+    $.fn.al_file = function (options) {
+        var $options = $.extend({}, $.fn.file.defaults, options);
+
+        this.each(function () {
+            var $this = $(this);
+            $this.addClass('file');
+            $this.html('<div class="file-container"></div>');
+
+            $this.file($options);
+        });
+        return this.data('file');
+    };
+
+    // 导入组件
+    $.fn.al_uploader = function (options) {
+        var $options = $.extend({}, $.fn.file.defaults, options);
+
+        this.each(function () {
+            var $this = $(this);
+            $this.addClass('file-import');
+            $this.import($options);
+        });
+        return this.data('file');
+    };
+}));

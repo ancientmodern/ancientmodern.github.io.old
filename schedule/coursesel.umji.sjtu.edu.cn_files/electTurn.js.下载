@@ -1,0 +1,206 @@
+define(['text!electClass/electTurn/electTurn.jsp', 'electClass/electTurn/config', 'css!electClass/electTurn/electTurn.css', 'map'], function (html,config) {
+    var _$this;
+    var loadLessonTasks = function (electTurnId, $el) {
+        $el.loading('1x');
+        Request.get({
+            url: 'tpm/findElectTurnLessonTasks_ElectTurn.action',
+            data: {
+                jsonString: JSON.stringify({
+                    electTurnId: electTurnId
+                })
+            },
+            callback: function (datas) {
+                $el.loaded();
+                // 排除实验课
+                var count = 0;
+                for(var i=0;i<datas.length;i++ ){
+                    if(datas[i]['lessonType'] == 0){
+                        count++;
+                    }
+                }
+                $el.text(count);
+                var ap_text = Help.get_i18n('The current round of a total of {course} course(s)').formatmodel({
+                    course: count + ''
+                });
+                $el.parent('li').al_popover({
+                    placement: 'bottom',
+                    container: 'body',
+                    trigger: 'hover',
+                    html: true,
+                    content:function(){
+                        var $div = $('<div"></div>');
+                        $div.html(ap_text);
+                        return $div;
+                    }
+                });
+            }
+        });
+    };
+    var loadElectResult = function (electTurnId, $el) {
+        $el.loading('1x');
+        Request.get({
+            url: 'tpm/findElectResult_ElectTurn.action',
+            data: {
+                jsonString: JSON.stringify({
+                    electTurnId: electTurnId
+                })
+            },
+            callback: function (datas) {
+                $el.loaded();
+
+                // 排除实验课
+                var count = 0;
+                var totalCredit = 0;
+                for (var i = 0; i < datas.length; i++) {
+                    var item = datas[i];
+                    if(item['lessonType'] == 0){
+                        count++;
+                    }
+                    totalCredit += item.credit == "" ? 0 : parseFloat(item.credit);
+                }
+                $el.text(count+' '+Help.get_i18n('Course(s)') + ' , ' + totalCredit + Help.get_i18n('Credit'));
+                $el.data({
+                    electResults:datas
+                });
+                var ap_text = Help.get_i18n('ElectTurn_FrontStatistic').formatmodel({
+                    credit: totalCredit + '',
+                    course: datas.length + ''
+                });
+                $el.parent('li').al_popover({
+                    placement: 'bottom',
+                    container: 'body',
+                    trigger: 'hover',
+                    html: true,
+                    content:function(){
+                        var $div = $('<div"></div>');
+                        $div.html(ap_text);
+                        return $div;
+                    }
+                });
+            }
+        });
+    };
+    var loadElectTurns = function () {
+        _$this.find('.elect-turns-student').empty();
+        _$this.find('.elect-turns-student').loading('1x', 'center');
+        Request.get({
+            url: 'tpm/findStudentElectTurns_ElectTurn.action',
+            callback: function (datas) {
+                _$this.find('.elect-turns-student').loaded();
+                if (datas.length === 0) {
+                    var $tip = $('<p class="text-primary elect-turn-empty">' + Help.get_i18n('There is no ongoing elective program') + ' , <a href="javascript:;">' + Help.get_i18n('Try reload') + '</a></p>');
+                    _$this.find('.elect-turns-student').empty().append($tip);
+                    _$this.find('.elect-turn-bottom').hide();
+                    $tip.find('a').click(loadElectTurns);
+                } else {
+                    _$this.find('.elect-turn-bottom').show();
+                }
+                for (var i = 0; i < datas.length; i++) {
+                    var data = datas[i];
+                    if(DateUtil.diff_second(data.endTime,DateUtil.getNow('yyyy-MM-dd hh:mm:ss')) > 0){
+                        continue;
+                    }
+                    for (var l = 0; l < data.lessonTasks.length; l++) {
+                        var lessonTask = data.lessonTasks[l];
+                        lessonTaskMap.put(lessonTask.lessonTaskId, lessonTask);
+                    }
+                    var totalCredit = 0;
+                    var electResultModels = data.electResultModels;
+                    for (var c = 0; c < electResultModels.length; c++) {
+                        totalCredit += lessonTaskMap.get(electResultModels[c].lessonTaskId).totalCredit;
+                    }
+                    var mode = "";
+                    if ("DROP" == data.electMode) {
+                        mode = '<span class="label label-warning elect-turn-mode">' + data.electModeName + '</span>';
+                    } else if ("TIME" == data.electMode) {
+                        mode = '<span class="label label-danger elect-turn-mode">' + data.electModeName + '</span>';
+                    } else if ("POINT" == data.electMode) {
+                        mode = '<span class="label label-primary elect-turn-mode">' + data.electModeName + '</span>';
+                    } else if ("MASSELECTION" == data.electMode) {
+                        mode = '<span class="label label-info elect-turn-mode">' + data.electModeName + '</span>';
+                    }
+
+                    var $electturn_div = $('<div class="row elect-turn">'
+                        + '  <div class="col-md-9 col-sm-8 col-xs-6"> '
+                        + '    <div class="up">'
+                        + '         <a class="elect-turn-name" href="javascript:void(0);">' + data.electTurnName + '</a>'
+                        + mode
+                        + '    </div>'
+                        + '    <div class="time">'
+                        + '       <span class="beginTime">' + data.beginTime + '</span>'
+                        + '       <span> ~ </span>'
+                        + '       <span class="endTime">' + data.endTime + '</span>'
+                        + '     </div>'
+                        + '   </div>'
+                        + '  <div class="col-md-3 col-sm-4 col-xs-6"> '
+                        + '   <ul class="list-unstyled">'
+                        + '      <li>' + Help.get_i18n('Course') + ':<span class="lesson-task-count"></span></li>'
+                        + '      <li>' + Help.get_i18n('Elected') + ':<span class="elected-count"></span></li>'
+                        + '   </ul>'
+                        + '  </div>'
+                        + '</div>');
+                    $electturn_div.data(data);
+                    _$this.find('.elect-turns-student').append($electturn_div);
+                    var electTurnId = data.electTurnId;
+                    loadLessonTasks(electTurnId, $electturn_div.find('span.lesson-task-count'));
+                    // loadElectResult(electTurnId, $electturn_div.find('span.elected-count'));
+                    $electturn_div.find('a.elect-turn-name').on('click', {electTurn: data}, function (event) {
+                        if (!event)
+                            event = window.event;
+                            __ActiveModule({
+                                'menuId': 'ElectTurnExplanation',
+                                'caption': Help.get_i18n('Elect Class Explanation'),
+                                'url': 'electClass/electTurn/electTurnExplanation?electTurnId=' + event.data.electTurn.electTurnId,
+                                'reload': true,
+                                'iFrame': false,
+                                'params': event.data.electTurn
+                        });
+                    });
+                }
+                _$this.find('.elect-turns-student').loaded();
+            }
+        });
+    };
+    var initEvent = function () {
+        _$this.find('.elect-turns-student').empty();
+
+        _$this.find('a.jumpToResult').on('click',function () {
+            __ActiveModule({
+                menuId:'StudentElectResult',
+                caption:Help.get_i18n('Elect Class Log'),
+                url:'electClass/electClassResult',
+                showRefresh:true,
+                showClose:true,
+                reload:true
+            });
+        });
+        _$this.find('a.public-course-schedule').on('click',function () {
+            __ActiveModule({
+                menuId:'PublicCourseSchedule',
+                caption:Help.get_i18n('Public Course Schedule'),
+                url:'electClass/publicCourseSchedule/publicCourseSchedule',
+                showRefresh:false,
+                showClose:true,
+                reload:true
+            });
+        });
+    };
+    return {
+        view: function () {
+            return html;
+        },
+        init: function ($this) {
+            _$this = $this;
+            if(config && config.loadPage && typeof config.loadPage === 'function'){
+                config.loadPage(_$this,function(){
+                    initEvent();
+                    loadElectTurns();
+                });
+            }else{
+                initEvent();
+                loadElectTurns();
+            }
+        }
+    };
+
+});

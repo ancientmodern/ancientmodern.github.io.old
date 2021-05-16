@@ -1,0 +1,237 @@
+define(['../js/help', 'request', 'pagination', 'util', '../js/workflow'], function (help, request, pagination, util, workflow) {
+    var initCSRF = function () {
+        if ($('meta[name=_csrf]').length > 0) { // 判断是否启用 csrf
+            $(document).ajaxSend(function (e, xhr, opt) {
+                if (opt.type == 'POST') {
+                    var header = $('meta[name=_csrf_header]').attr('content');
+                    var token = $('meta[name=_csrf]').attr('content');
+                    if (header !== '' && token !== '') {
+                        xhr.setRequestHeader(header, token);
+                    }
+                }
+            });
+        }
+    };
+
+    /* 获取全局国际化资源 */ /** 弃用2018-10-23 14:34 石磊 **/
+    var loadI18n = function () {
+        var i18n;
+        $.ajax({
+            type: 'GET',
+            async: false,
+            dataType: 'json',
+            url: 'sys/findLocalKeyValue_I18nResource.action',
+            success: function (data) {
+                i18n = data;
+            }
+        });
+        return i18n;
+    };
+
+    /* 获取全局数据字典 */ /** 弃用2018-10-23 14:34 石磊 **/
+    var loadDataDictionary = function () {
+        var dd;
+        $.ajax({
+            type: 'GET',
+            async: false,
+            dataType: 'json',
+            url: 'sys/findLocalIdValue_DataDictionary.action',
+            success: function (data) {
+                dd = data;
+            }
+        });
+        return dd;
+    };
+
+    /* 获取全局Session */ /** 弃用2018-10-23 14:34 石磊 **/
+    var loadSession = function () {
+        var session;
+        $.ajax({
+            type: 'GET',
+            async: false,
+            dataType: 'json',
+            url: 'sys/session_Login.action',
+            success: function (data) {
+                session = data;
+            },
+            error: function (text) {
+                session = new Object();
+            }
+        });
+        return session;
+    };
+
+    /* 获取全局Parameter */ /** 弃用2018-10-23 14:34 石磊 **/
+    var loadParameter = function () {
+        var param;
+        $.ajax({
+            type: 'GET',
+            async: false,
+            dataType: 'json',
+            url: 'sys/findByMemory_Parameter.action',
+            success: function (data) {
+                if (data.length == 1) param = data[0];
+            }
+        });
+        return param;
+    };
+
+    var loadGlobalInfo = function () {
+        var info = { 'session': {}, 'parameter': {}, 'i18n': {}, 'dd': {} };
+        if (window.localStorage) {
+            var version = { i18n: -1, dd: -1, parameter: -1 }
+            var versionLocal = window.localStorage.getItem('global-version')
+            if (
+                versionLocal &&
+                versionLocal !== undefined &&
+                versionLocal !== 'undefined'
+            ) {
+                // 增加健壮性, 如果某种情况出现有版本信息，但没有具体的数据信息
+                $.extend(version, JSON.parse(versionLocal));
+                if (window.localStorage.getItem('global-i18n') === null) {
+                    version.i18n = -1
+                }
+                if (window.localStorage.getItem('global-dd') === null) {
+                    version.dd = -1
+                }
+                if (window.localStorage.getItem('global-parameter') === null) {
+                    version.parameter = -1
+                }
+            }
+            $.ajax({
+                type: 'GET',
+                async: false,
+                data: { jsonString: JSON.stringify({ version: version }) },
+                dataType: 'json',
+                url: 'sys/globalInfoByVersion_Login.action',
+                success: function (data) {
+                    info = cacheGlobalInfo(data)
+                }
+            });
+        } else {
+            $.ajax({
+                type: 'GET',
+                async: false,
+                dataType: 'json',
+                url: 'sys/globalInfo_Login.action',
+                success: function (data) {
+                    info = data;
+                }
+            });
+        }
+
+        return info;
+    }
+
+    var cacheGlobalInfo = function (data) {
+        window.localStorage.setItem('global-version', JSON.stringify(data.version))
+        if (data.i18n) {
+            window.localStorage.setItem('global-i18n', JSON.stringify(data.i18n))
+        } else {
+            var i18n = window.localStorage.getItem('global-i18n')
+            if (i18n) {
+                data.i18n = JSON.parse(i18n)
+            }
+        }
+        if (data.dd) {
+            window.localStorage.setItem('global-dd', JSON.stringify(data.dd))
+        } else {
+            var dd = window.localStorage.getItem('global-dd')
+            if (dd) {
+                data.dd = JSON.parse(dd)
+            }
+        }
+        if (data.parameter) {
+            window.localStorage.setItem('global-parameter', JSON.stringify(data.parameter))
+        } else {
+            var parameter = window.localStorage.getItem('global-parameter')
+            if (parameter) {
+                data.parameter = JSON.parse(parameter)
+            }
+        }
+        return data;
+    }
+
+    var openFacultyProfile = function (id, name) {
+        var params = $.extend({}, { id: __Session.userId, name: __Session.userName }, { id: id, name: name });
+        var opt = { menuId: 'Faculty_Profile_' + params.id,
+            caption: params.name,
+            url: 'faculty/faculty?sid=' + params.id,
+            reload: true };
+        __ActiveModule(opt);
+    };
+
+    var openStudentProfile = function (id, name) {
+        var params = $.extend({}, { id: __Session.userId, name: __Session.userName }, { id: id, name: name });
+        var opt = { menuId: 'Student_Profile_' + params.id,
+            caption: params.name,
+            url: 'student/profile?sid=' + params.id,
+            reload: true };
+        __ActiveModule(opt);
+    };
+
+    var openProfile = function (id, name, type) {
+        if (type === undefined) {
+            type = __Session.userType;
+        }
+        if (type == '1') {
+            openStudentProfile(id, name);
+        }
+        if (type == '2') {
+            openFacultyProfile(id, name);
+        }
+    };
+
+    /**
+	 * set global function object variable
+	 */
+    var setGlobal = function (frame) {
+        window.__EMPTYID = '00000000-0000-0000-0000-000000000000';
+
+        window.Help = $.extend({}, util, help);
+        window.Request = request;
+        window.Pagination = pagination;
+        window.workflow = workflow;
+
+        window.DateUtil = util.dateUtil;
+        window.Pinyin = util.pinyin;
+
+        window.doImg = function (ele) {};
+
+        window.__open = help.open;
+        window.__openPost = help.openPost;
+
+        window.__OpenReport = help.openReport;
+        window.__ParseAlTag = help.parseAlTag;
+        window.__AuthRefresh = help.authRefresh;
+        window.__AuthData = help.authData;
+        window.__AuthCheck = help.authCheck;
+        window.__ModuleHeight = help.moduleHeight;
+        window.__ActiveModule = frame.activeModule;
+        window.__DestroyModule = frame.destroyModule;
+        window.__OpenFacultyProfile = openFacultyProfile;
+        window.__OpenStudentProfile = openStudentProfile;
+        window.__OpenProfile = openProfile;
+        window.__PrintPage = help.printPage;
+        window.__SpeechRefresh = frame.loadSpeech;
+
+        window.__Auth = {}; // 在index.js 创建菜单时被赋值
+
+        var info = loadGlobalInfo();
+        window.__Session = info.session;
+        window.__Parameter = info.parameter;
+        window.__I18n = info.i18n;
+        window.__DataDictionary = info.dd;
+
+        window.__LoginUserId = (__Session) ? __Session.userId : '';
+
+        window.lang = __Session.language;
+    };
+
+    return {
+        init: function (frame) {
+            initCSRF();
+            setGlobal(frame);
+        }
+    };
+});

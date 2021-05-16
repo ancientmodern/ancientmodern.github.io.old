@@ -1,0 +1,633 @@
+(function (factory) {
+    if (typeof define === "function" && define.amd) {
+        define(["jquery"], factory);
+    } else {
+        factory(jQuery);
+    }
+}
+(function ($) {
+
+    $.tip = {
+
+        info: function (info, position, time) {
+            require(['jquery.gritter'], function () {
+                var text = '<p style="color:#eee;"><i class="fa fa-star"></i> ' + info + ' </p>';
+                var option = {
+                    time: time ? time : 2000,
+                    text: text,
+                    class_name: 'gritter-info'
+                };
+                $.gritter.options.position = position ? position : 'bottom-right';
+                $.gritter.add(option);
+            });
+        },
+        success: function (msg, position, time) {
+            require(['jquery.gritter'], function () {
+                var text = '<p style="color:#eee;"><i class="fa fa-check"></i> ' + ((msg === undefined) ? 'Success!' : msg) + ' </p>';
+                var option = {
+                    time: time ? time : 2000,
+                    text: text,
+                    class_name: 'gritter-success'
+                };
+                $.gritter.options.position = position ? position : 'bottom-right';
+                $.gritter.add(option);
+            })
+        },
+        error: function (error, position, time) {
+            require(['jquery.gritter'], function () {
+                var text = '<p style="color:#eee;"><i class="fa fa-close"></i> ' + error + '</p>';
+                var option = {
+                    time: time ? time : 5000,
+                    text: text,
+                    class_name: 'gritter-error'
+                };
+                $.gritter.options.position = position ? position : 'bottom-right';
+                $.gritter.add(option);
+            });
+        },
+        warning: function (warning, position, time) {
+            require(['jquery.gritter'], function () {
+                var text = '<p style="color:#eee;"><i class="fa fa-warning"></i> ' + warning + ' </p>';
+                var option = {
+                    time: time ? time : 3000,
+                    text: text,
+                    class_name: 'gritter-warning'
+                };
+                $.gritter.options.position = position ? position : 'bottom-right';
+                $.gritter.add(option);
+            });
+        }
+
+    };
+
+    $.fn.extend({
+        loading: function (x,textAlign) {
+            var $i = $('<i class="fa fa-spinner fa-pulse fa-fw loading-icon"></i>');
+            if(textAlign){
+                $i.css({
+                    textAlign:textAlign
+                });
+            }
+            this.prepend($i);
+            if (x) {
+                this.find('.loading-icon').addClass('fa-' + x);
+            }
+            return this;
+        },
+        loaded: function () {
+            this.children('.loading-icon').remove();
+            return this;
+        },
+        mask: function (loading) {
+            var $pulse = (loading == false) ? '' : ($('<i class="fa fa-spinner fa-pulse fa-fw fa-2x" style="  position: absolute;top: 15%;"></i>'));
+            this.css('position', 'relative');
+            this.append($('<div class="mask"></div>').append($pulse).css({
+                'width': this.css('width')
+            }, {
+                'heigth': this.css('height')
+            }));
+        },
+        unMask: function () {
+            this.children('.mask').remove();
+        },
+        slideLeft: function (speed, callback) {
+            this.animate({
+                width: "hide",
+                paddingLeft: "hide",
+                paddingRight: "hide",
+                marginLeft: "hide",
+                marginRight: "hide"
+            }, speed, callback);
+        },
+        slideRight: function (speed, callback) {
+            this.animate({
+                width: "show",
+                paddingLeft: "show",
+                paddingRight: "show",
+                marginLeft: "show",
+                marginRight: "show"
+            }, speed, callback);
+        },
+        al_popover: function (config) {
+            if (typeof config == 'object') {
+                var defaultConfig = {
+                    placement: 'right',
+                    container: 'body',
+                    trigger: 'hover',
+                    html: true
+                };
+                this.popover($.extend(defaultConfig, config));
+            } else {
+                this.popover(config);
+            }
+
+        },
+        al_switch: function (obj1, obj2, obj3) {
+            var self = this;
+            require(['bootstrap.switch'], function () {
+                self.bootstrapSwitch(obj1, obj2, obj3);
+            });
+        },
+        autoSearch: function (url, options) {
+            var $searchInput = this;
+            var $fieldName = {
+                id: 'id',
+                name: 'name',
+                code: 'code',
+                type: 'type',
+                extend: []
+            };
+            $.extend($fieldName, options.fieldName);
+            $searchInput.autocomplete({
+                source: function (request, response) {
+                    var params = {};
+                    params[options.searchKey] = request.term;
+                    if (options.userType) {
+                        params.userType = options.userType;
+                    }
+                    if (options.searchParams) {
+                        for (var i = 0; i < options.searchParams.length; i++) {
+                            for (var item in options.searchParams[i]) {
+                                params[item] = options.searchParams[i][item];
+                            }
+                        }
+                    }
+                    Request.post({
+                        url: url,
+                        data: {
+                            start: 0,
+                            limit: 999999,
+                            jsonString: JSON.stringify(params)
+                        },
+                        callback: function (result) {
+                            if (options.root) {
+                                result = result[options.root];
+                            }
+                            response($.map(result, function (item) {
+
+                                var data = {
+                                    label: item[$fieldName.name],
+                                    value: item[$fieldName.id]
+                                }
+
+                                if (item[$fieldName.code]) {
+                                    data.code = item[$fieldName.code];
+                                }
+                                if (item[$fieldName.type]) {
+                                    data.type = item[$fieldName.type];
+                                }
+                                if ($fieldName.extend) {
+                                    for (var i = 0; i < $fieldName.extend.length; i++) {
+                                        data[$fieldName.extend[i]] = item[$fieldName.extend[i]];
+                                    }
+                                }
+                                return data;
+                            }));
+                        }
+                    });
+                },
+                select: function (e, ui) {
+                    if (options.select && typeof options.select == 'function') {
+                        options.select(e, ui, $searchInput);
+                    } else {
+                        $searchInput.val(ui.item.label);
+                        $searchInput.data('id', ui.item.value);
+                    }
+                    return false;
+                },
+                focus: function (e, ui) {
+                    if (options.focus && typeof options.focus == 'function') {
+                        options.focus(e, ui, $searchInput);
+                    } else {
+                        $searchInput.val(ui.item.label);
+                    }
+                    return false;
+                }
+            });
+            $searchInput.data("ui-autocomplete")._renderItem = function (ul, item) {
+                var result = options.render;
+                var resultHtml = "";
+                if (result && typeof result == 'function') {
+                    resultHtml = result(ul, item);
+                } else {
+                    resultHtml = "<a>" +
+                        "  <span>" + item.label + ((item.code) ? ('|' + item.code) : '') + "</span>" +
+                        ((item.type) ? "<span class='search-item-extend'>" + item.type + "</span>" : "") +
+                        "</a>";
+                }
+                return $("<li></li>")
+                    .data("item.autocomplete", item)
+                    .append(resultHtml)
+                    .appendTo(ul);
+            };
+        },
+
+        insertAtCursor: function (myValue) {
+            var $t = $(this)[0];
+            if (document.selection) {
+                this.focus();
+                sel = document.selection.createRange();
+                sel.text = myValue;
+                this.focus();
+            } else if ($t.selectionStart || $t.selectionStart == '0') {
+                var startPos = $t.selectionStart;
+                var endPos = $t.selectionEnd;
+                var scrollTop = $t.scrollTop;
+                $t.value = $t.value.substring(0, startPos) + myValue + $t.value.substring(endPos, $t.value.length);
+                this.focus();
+                $t.selectionStart = startPos + myValue.length;
+                $t.selectionEnd = startPos + myValue.length;
+                $t.scrollTop = scrollTop;
+            } else {
+                this.value += myValue;
+                this.focus();
+            }
+        },
+
+        autoComBox: function (options) {
+            var $comBox = this;
+            var $fieldName = {
+                key: 'key',
+                value: 'value',
+                extend: []
+            };
+            $.extend($fieldName, options.fieldName);
+            if (options.url) {
+                var option = {
+                    url: options.url,
+                    data: {
+                        start: 0,
+                        limit: 999999
+                    },
+                    callback: function (result) {
+                        if (options.root) {
+                            result = result[options.root];
+                        }
+                        for (var i = 0; i < result.length; i++) {
+                            var $option = $('<option value="' + result[i][$fieldName.key] + '">' + result[i][$fieldName.value] + '</option>');
+                            $comBox.append($option);
+                        }
+                    }
+                }
+                Request.get(option);
+            }
+            if (options.datas) {
+                for (var i = 0; i < options.datas.length; i++) {
+                    var $option = $('<option value="' + options.datas[i].key + '">' + options.datas[i].value + '</option>');
+                    $comBox.append($option);
+                }
+            }
+        },
+
+        /**
+         * 业务页面的头部Tab插件
+         * @param options {$dropdown, event:默认click， fn:可选,  afterFn:可选}  || 如果是字符类型 == dropdown
+         */
+        hTab: function (options) {
+            if (typeof options == "string") { //如果是字符类型 == dropdown
+                options = {
+                    $dropdown: $(options)
+                };
+            }
+            var $ul = this;
+            var event = options.event || 'click';
+            var fn = options.fn || function (e) {
+                    var $this = $(this);
+                    if ($this.hasClass('active') && ( !options.hasOwnProperty('forceRefresh') || options['forceRefresh'] == false)) {
+                        return false;
+                    } else {
+                        var beforeToggle = $this.siblings("li.active").data('toggle');
+                        var toggle = $this.data('toggle');
+                        if (!toggle) return false;
+
+                        $this.siblings("li.active").removeClass("active");
+                        $this.addClass("active");
+
+                        var $toggle = options.$dropdown.children(toggle);
+                        var $beforeToggle = options.$dropdown.children(beforeToggle);
+                        if ($beforeToggle) {
+                            $beforeToggle.hide();
+                        } else {
+                            console.error("jquery plugins [hTab] error: has not found [toggle] configuration!");
+                        }
+                        if ($toggle) {
+                            $toggle.fadeIn('fast');
+                        } else {
+                            console.error("jquery plugins [hTab] error: has not found [toggle] configuration!");
+                        }
+                        if (typeof(options.afterFn) == 'function') {
+                            options.afterFn.call($this);
+                        }
+                    }
+                }
+
+            $ul.children('li').bind(event, fn);
+        },
+        my97: function (setting) {
+            var that = $(this);
+            require(['WdatePicker'], function () {
+                that.click(function () {
+                    if ($.isPlainObject(setting)) {
+                        WdatePicker(setting);
+                    }
+                })
+            });
+        },
+        serializeJson: function () {
+            var o = {};
+            var a = this.serializeArray();
+            $.each(a, function () {
+                if (o[this.name]) {
+                    if (!o[this.name].push) {
+                        o[this.name] = [o[this.name]];
+                    }
+                    o[this.name].push(this.value || '');
+                } else {
+                    o[this.name] = this.value || '';
+                }
+            });
+            return o;
+        }
+});
+
+    $.extend({
+
+        confirm_simple: function (options, fn) {
+            if (options.title === undefined) {
+                options.title = "<span style='font-size:16px;'>" + Help.get_i18n('Confirm') + "</span>";
+            }
+            if (options.icon === undefined) {
+                options.icon = 'fa fa-question-circle';
+            }
+            if (options.backgroundDismiss === undefined) {
+                options.backgroundDismiss = true;
+            }
+            if (options.animation === undefined) {
+                options.animation = 'scale';
+            }
+            if (!options.hasOwnProperty('buttons')) {
+                var buttons = new Object();
+                buttons.ok = {
+                    text: options.hasOwnProperty("confirmButton") ? options['confirmButton'] : Help.get_i18n('Confirm'),
+                    btnClass: options.hasOwnProperty("confirmButtonClass") ? options['confirmButtonClass'] : 'btn-info'
+                }
+                if(options.hasOwnProperty('confirm') && typeof options.confirm == 'function'){
+                    buttons.ok.action = options.confirm;
+                }else if (typeof fn == 'function') {
+                    buttons.ok.action= fn;
+                }
+
+                buttons.cancel = {
+                    text: options.hasOwnProperty("cancelButton") ? options['cancelButton'] : Help.get_i18n('Cancel'),
+                    btnClass: options.hasOwnProperty("cancelButtonClass") ? options['cancelButtonClass'] : 'btn-default'
+                }
+                if(options.hasOwnProperty('cancel') && typeof options.cancel == 'function'){
+                    buttons.cancel.action = options.cancel;
+                }
+                options.buttons = buttons;
+            }
+            require(['jquery.confirm'], function () {
+                $.confirm(options);
+            });
+        },
+
+        jqtab: function (tabtit, tab_conbox, shijian) {
+            var firstLi = $(tabtit).find("li:first");
+            firstLi.addClass("active").show();
+            var toggle = firstLi.data('toggle');
+            $(tab_conbox).children("#" + toggle).siblings().hide();
+
+            $(tabtit).find("li").bind(shijian, function () {
+                var toggle = $(this).data('toggle');
+                if (!toggle)
+                    return false;
+                $(this).addClass("active").siblings("li").removeClass("active");
+                var target = $(tab_conbox).children("#" + $(this).data('toggle'));
+                target.show();
+                target.siblings().hide();
+                return false;
+            });
+        },
+
+        al_modal: function (options) {
+            options = $.extend({}, {autoRemove: true}, options);
+            var $modal = $('<div class="modal fade al-modal" tabindex="-1" role="dialog">' +
+                '   <div class="modal-dialog" role="document">' +
+                '       <div class="modal-content">' +
+                '           <div class="modal-header">' +
+                '               <button type="button" class="close" data-dismiss="modal" aria-label="Close">' +
+                '                   <span aria-hidden="true">&times;</span></button>' +
+                '                   <h4 class="modal-title"></h4>' +
+                '              </div>' +
+                '           <div class="modal-body">' +
+                '           </div>' +
+                '           <div class="modal-footer" style="width: 100%;">' +
+                '               <button type="button" class="btn btn-default modal-cancel" data-dismiss="modal">' + Help.get_i18n('Close') + '</button>' +
+                '               <button type="button" class="btn btn-primary modal-confirm" data-loading-text="' + Help.get_i18n('Saving...') + '">' + Help.get_i18n('Confirm') + '</button>' +
+                '           </div>' +
+                '        </div>' +
+                '   </div>' +
+                ' </div>');
+            $('body').append($modal);
+            if (options.size) {
+                $modal.find('.modal-dialog').addClass(options.size);
+            }
+            if (options.selfClass) {
+                $modal.find('.modal-dialog').addClass(options.selfClass);
+            }
+            if (options.title) {
+                $modal.find('.modal-title').append(options.title);
+            }
+            if (options.content) {
+                if (typeof options.content == 'function') {
+                    $modal.find('.modal-body').append(options.content($modal));
+                } else {
+                    $modal.find('.modal-body').append(options.content);
+                }
+            }
+            if (options.hasOwnProperty('btnCancelText')) {
+                $modal.find('.modal-cancel').text(options.btnCancelText);
+            }
+            if (options.hasOwnProperty('btnConfirmText')) {
+                $modal.find('.modal-confirm').text(options.btnConfirmText);
+            }
+            if (options.hasOwnProperty('quickClose') && options.quickClose == false) {
+                $modal.find('.modal-header > button').remove();
+            }
+            if (!options.hasOwnProperty('showBtnCancel') || (options.hasOwnProperty('showBtnCancel') && options.showBtnCancel == false)) {
+                $modal.find('.modal-cancel').remove();
+            }
+            if (!options.hasOwnProperty('showBtnConfirm') || (options.hasOwnProperty('showBtnConfirm') && options.showBtnConfirm == false)) {
+                $modal.find('.modal-confirm').remove();
+            }
+            if (!options.hasOwnProperty('autoHide') || (options.hasOwnProperty('autoHide') && options.autoHide == true)) {
+                $modal.find('.modal-confirm').attr('data-dismiss', 'modal');
+            }
+            if (options.hasOwnProperty('buttons')) {
+                var buttons = options.buttons;
+                for (var i = 0; i < buttons.length; i++) {
+                    var button = buttons[i];
+                    if (typeof button == 'string') {
+                        $(button).insertBefore($modal.find('.modal-footer').find('button').first());
+                    } else if (typeof button == 'object') {
+                        var $button = $(button.html);
+                        var position = button.hasOwnProperty('position') ? button.position : 'left';
+                        if (button.hasOwnProperty('click')) {
+                            $button.on('click', {
+                                click: button.click
+                            }, function (event) {
+                                if (!event) {
+                                    event = window.event;
+                                }
+                                event.data.click.call(window, $modal, $(this));
+                            });
+                        }
+                        if ("left" == position) {
+                            $button.insertBefore($modal.find('.modal-footer').find('button').first());
+                        } else if ("right" == position) {
+                            $button.insertAfter($modal.find('.modal-footer').find('button').last());
+                        }
+                    }
+                }
+            }
+            if (options.hasOwnProperty("btnAlign")) {
+                $modal.find('.modal-footer').css("text-align", options.btnAlign);
+            }
+            if (options.hasOwnProperty('btnShowAsGroup') && options.btnShowAsGroup) {
+                $modal.find('.modal-footer').addClass('btn-group');
+                $modal.find('.modal-footer').find('button').css({
+                    'margin-left': 0,
+                    'float': 'none'
+                });
+            }
+
+            if (options.events) {
+                if (options.events instanceof Array) {
+                    for (var i = 0; i < options.events.length; i++) {
+                        var event = options.events[i];
+                        $modal.on(event.name + '.bs.modal', {
+                            callback: event.callback
+                        }, function (e) {
+                            if (!e)
+                                e = window.event;
+                            var callback = e.data.callback;
+                            callback.call(window, $modal);
+                        });
+                    }
+                }
+            }
+            $modal.on('hidden.bs.modal', function (e) {
+                if (options.autoRemove) {
+                    $(this).remove();
+                }
+                if ($('.al-modal').length > 0 && $('.al-modal').hasClass('in')) {
+                    $('body').addClass('modal-open');
+                }
+            });
+            $modal.find('.modal-confirm').on('click', {
+                confirm: options.confirm
+            }, function (event) {
+                if (!event) {
+                    event = window.event;
+                }
+                if (event.data.confirm) {
+                    event.data.confirm.call(window, $modal, $(this));
+                }
+            });
+            $modal.find('.modal-cancel').on('click', {
+                close: options.close
+            }, function (event) {
+                if (!event) {
+                    event = window.event;
+                }
+                if (event.data.close) {
+                    event.data.close.call(window, $modal, $(this));
+                }
+            });
+            $modal.modal(options);
+            $modal.modal('show');
+
+            return $modal;
+        },
+
+        formatModel: function (url, obj) {
+            var result = '';
+            $.ajax({
+                url: url,
+                async: false,
+                success: function (data) {
+                    result = data.formatmodel(obj);
+                }
+            });
+            return result;
+        },
+
+        loadTemplate: function (url, obj) {
+            var result = '';
+            $.ajax({
+                url: url,
+                async: false,
+                success: function (data) {
+                    if (obj) {
+                        result = data.formatmodel(obj);
+                    } else {
+                        result = data;
+                    }
+                }
+            });
+            return result;
+        },
+
+        /**
+         * 以下基于weui的插件
+         */
+        loading: function (text) {
+            var html = '<div id="loading_" class="weui_loading_toast">' +
+                '    <div class="weui_mask_transparent"></div>' +
+                '    <div class="weui_toast">' +
+                '        <div class="weui_loading">' +
+                '           <div class="weui_loading_leaf weui_loading_leaf_0"></div>' +
+                '           <div class="weui_loading_leaf weui_loading_leaf_1"></div>' +
+                '           <div class="weui_loading_leaf weui_loading_leaf_2"></div>' +
+                '           <div class="weui_loading_leaf weui_loading_leaf_3"></div>' +
+                '           <div class="weui_loading_leaf weui_loading_leaf_4"></div>' +
+                '           <div class="weui_loading_leaf weui_loading_leaf_5"></div>' +
+                '           <div class="weui_loading_leaf weui_loading_leaf_6"></div>' +
+                '           <div class="weui_loading_leaf weui_loading_leaf_7"></div>' +
+                '           <div class="weui_loading_leaf weui_loading_leaf_8"></div>' +
+                '           <div class="weui_loading_leaf weui_loading_leaf_9"></div>' +
+                '           <div class="weui_loading_leaf weui_loading_leaf_10"></div>' +
+                '           <div class="weui_loading_leaf weui_loading_leaf_11"></div>' +
+                '       </div>' +
+                '       <p class="weui_toast_content">' + (text ? text : (("en_US" == __Language) ? 'loading...' : '加载中...')) + '</p>' +
+                '   </div>' +
+                '</div>';
+            $('body').append($(html));
+        },
+
+        loaded: function () {
+            $('#loading_').remove();
+        },
+
+        success: function (text, callback) {
+            var html = '<div id="success_">' +
+                '<div class="weui_mask_transparent"></div>' +
+                '<div class="weui_toast">' +
+                '<i class="weui_icon_toast"></i> ' +
+                '<p class="weui_toast_content">' + (text && typeof(text) == 'string' ? text : (("en_US" == __Language) ? 'Success' : '已完成')) + '</p> ' +
+                '</div>' +
+                '</div>';
+            $('body').append($(html));
+            setTimeout(function () {
+                $('#success_').remove();
+                if (typeof(text) == 'function') {
+                    text.call(this);
+                } else if (typeof(callback) == 'function') {
+                    callback.call(this);
+                }
+            }, 2000);
+        }
+
+    });
+
+}));

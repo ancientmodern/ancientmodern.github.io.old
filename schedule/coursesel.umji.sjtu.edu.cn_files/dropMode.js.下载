@@ -1,0 +1,2587 @@
+define(['text!electClass/dropMode/dropMode.jsp','electClass/config','css!electClass/dropMode/dropMode.css', 'map','electClass/alarm'], function (html,config) {
+    var _$this;
+    var _params = null;
+    var _electTurnId;
+    var courseTypeColor = new Map();
+    var _isReadonly = false;
+    var _prerequisiteProfession = false;
+    var initCourseTypeColor = function () {
+        courseTypeColor.put('CourseType.1', '#ff4d4d');
+        courseTypeColor.put('CourseType.2', '#4d79ff');
+        courseTypeColor.put('CourseType.3', '#00e600');
+        courseTypeColor.put('CourseType.4', '#e6ac00');
+        courseTypeColor.put('CourseType.5', '#e600ac');
+    };
+    var _lcc = false;
+    var _mentorApproveDrop;
+    var _mentorApproveElect;
+    var _conflictRatio = null;
+    var _optionMap = new Map();
+    var _courseTypeMap = new Map();
+    var _containCourseType = [];
+    var _containTermId = [];
+    var _courseGroupMap = new Map();
+    var _courseTypeCreditMap = new Map();
+    var _singleCourseTypeCredit = new Map();
+    var _courseTypeLessonTask = new Map();
+    var _lessonTaskMap = new Map();
+    var _electTurnResult = new Map();
+    var _electTurnResultDrop = new Map();
+    var _studiedLessonTask = new Map();
+    var _electedCredit = new Map();
+    var _electedTermCredit = new Map();
+    var _electedCourseCredit = new Map();
+    var _totalElectedCredit = new Map();
+    var _electedNum = new Map();
+    var _studiedCredit = new Map();
+    var _studiedCredit_tmp = new Map();
+    var _electTurnSetting = new Map();
+    var hasCourseGroup = false;
+    var _isOpen = false;
+    var _electedCounter = 0;
+    var _isOpening = false;
+    var _prerequisiteCourse = new Map();
+    var _prerequisiteExempt = new Map();
+    var _studentObtainedCredit = new Map();
+    var _studentScore = new Map();
+    var _experimentCourse = new Map();
+    var _electedExperimentCourse = new Map();
+    var _lessonCalendar = new Map();
+    var _lessonCalendarConflict = new Map();
+    var _termCredit = new Map();
+    var _termModels = new Map();
+    var _studiedTermCredit = new Map();
+    var _studiedTermCredit_tmp = new Map();
+    var refresh = function () {
+        _mentorApproveDrop = null;
+        _mentorApproveElect = null;
+        _conflictRatio = null;
+        _courseTypeMap.clear();
+        _containCourseType = [];
+        _containTermId = [];
+        _courseGroupMap.clear();
+        _courseTypeCreditMap.clear();
+        _singleCourseTypeCredit.clear();
+        _courseTypeLessonTask.clear();
+        _lessonTaskMap.clear();
+        _studiedLessonTask.clear();
+        _electTurnResult.clear();
+        _electTurnResultDrop.clear();
+        _electedCredit.clear();
+        _electedTermCredit.clear();
+        _electedCourseCredit.clear();
+        _totalElectedCredit.clear();
+        _electedNum.clear();
+        _lcc = false;
+        hasCourseGroup = false;
+        _electTurnSetting = new Map();
+        _studiedCredit.clear();
+        _studiedCredit_tmp.clear();
+        _electedCounter = 0;
+        _prerequisiteCourse.clear();
+        _prerequisiteExempt.clear();
+        _studentObtainedCredit.clear();
+        _studentScore.clear();
+        _experimentCourse.clear();
+        _electedExperimentCourse.clear();
+        _lessonCalendar.clear();
+        _lessonCalendarConflict.clear();
+        _termCredit.clear();
+        _termModels.clear();
+        _studiedTermCredit.clear();
+        _studiedTermCredit_tmp.clear();
+        _$this.find('.th-checkbox').remove();
+        _$this.find('.courseTypes').children().remove();
+        _$this.find('.lessonTasks > table').children().remove();
+        loadLessonTask();
+    };
+    /**
+     * 初始化课表冲突数据
+     * @param datas
+     */
+    var initLessonCalendarConflict = function (datas) {
+        if(datas && datas!=null){
+            for(var key in datas){//用javascript的for/in循环遍历对象的属性
+                _lessonCalendarConflict.put(key,datas[key]);
+            }
+        }
+    };
+    /**
+     * 初始化课表数据
+     * @param datas
+     */
+    var initLessonCalendar = function (datas) {
+        if(datas && datas!=null){
+            for (var i = 0; i < datas.length; i++) {
+                var data = datas[i];
+                _lessonCalendar.put(data.lessonTaskId, data);
+            }
+        }
+    };
+    /**
+     * 初始化轮次选课结果数据
+     * @param datas
+     */
+    var initElectTurnResult = function (datas) {
+        _electedCredit.clear();
+        for (var i = 0; i < datas.length; i++) {
+            var data = datas[i];
+            var electStatus = data['electStatus'];
+            // 如果当前选课记录状态是退课,则把选课结果存放在退课中
+            if(electStatus == 6 || electStatus == 7 || electStatus == 8){
+                _electTurnResultDrop.put(data.lessonTaskId, data);
+            }else if(electStatus == 1
+                || electStatus == 2
+                || electStatus == 3){
+                _electTurnResult.put(data.lessonTaskId, data);
+
+                //以课程类型分类,计算已选未确认的学分,
+                if(!_studiedLessonTask.containsKey(data.lessonTaskId)){
+                    var currentCredit = 0;
+                    if (_electedCredit.containsKey(data.courseTypeId)) {
+                        currentCredit = _electedCredit.get(data.courseTypeId);
+                    }
+                    currentCredit += parseFloat(data.credit);
+                    _electedCredit.put(data.courseTypeId, currentCredit);
+                }
+
+                var currentCredit = 0;
+                if (_totalElectedCredit.containsKey(data.courseTypeId)) {
+                    currentCredit = _totalElectedCredit.get(data.courseTypeId);
+                }
+                currentCredit += parseFloat(data.credit);
+                _totalElectedCredit.put(data.courseTypeId, currentCredit);
+            }
+        }
+    };
+    /**
+     * 初始化轮次退课数据
+     * @param datas
+     */
+    var initElectTurnResultDrop = function (datas) {
+        for (var i = 0; i < datas.length; i++) {
+            var data = datas[i];
+            _electTurnResultDrop.put(data.lessonTaskId, data);
+        }
+    };
+    /**
+     * 初始化学生已修教学任务
+     * @param datas
+     */
+    var initStudiedLessonTask = function (datas) {
+        for (var i = 0; i < datas.length; i++) {
+            var data = datas[i];
+            _studiedLessonTask.put(data, data);
+        }
+    };
+    /**
+     * 初始化学生已修学分
+     * @param datas
+     */
+    var initStudiedCredit = function (datas) {
+        for (var i = 0; i < datas.length; i++) {
+            var data = datas[i];
+            _studiedCredit.put(data.courseTypeId,data.studiedCredit);
+        }
+    };
+
+    /**
+     * 初始化学期学分约束
+     * @param datas
+     */
+    var initTermCredit = function (datas) {
+        for (var i = 0; i < datas.length; i++) {
+            var data = datas[i];
+            _termCredit.put(data.termId, data);
+        }
+    };
+    /**
+     * 初始化根据学期分类的已修学分数据
+     * @param datas
+     */
+    var initStudiedTermCredit = function (datas) {
+        for (var i = 0; i < datas.length; i++) {
+            var data = datas[i];
+            _studiedTermCredit.put(data.termId, data.studiedCredit);
+        }
+    };
+
+    /**
+     * 初始化根据学期分类的已选未确认学分数据
+     * @param datas
+     */
+    var initElectedTermCredit = function (datas) {
+        for (var i = 0; i < datas.length; i++) {
+            var data = datas[i];
+            _electedTermCredit.put(data.termId, data.electedCredit);
+        }
+    };
+
+    /**
+     * 计算按课程类型统计的学分
+     * @param lessonTask
+     */
+    var calc_courseTypeCredit = function (lessonTask) {
+        if (_electTurnResult.containsKey(lessonTask.lessonTaskId)) {
+                var currentCredit = 0;
+                if (_electedCredit.containsKey(lessonTask.courseType)) {
+                    currentCredit = _electedCredit.get(lessonTask.courseType);
+                }
+                var $electedCreditVal = $('li[id="' + lessonTask.courseType + '"]').find('.electedCreditVal');
+                $electedCreditVal.html(currentCredit + lessonTask.totalCredit);
+
+                currentCredit += lessonTask.totalCredit;
+                _electedCredit.put(lessonTask.courseType, currentCredit);
+        }
+    };
+
+    /**
+     * 判断显示选课按钮状态、文本及功能
+     * @param button
+     * @param lessonTasks
+     * @param remainSlots
+     */
+    var electText = function (button, lessonTasks,remainSlots) {
+        if (_isReadonly) {
+            button.addClass('btn-default').prop('disabled', 'disabled');
+        }
+        if (lessonTasks instanceof Array) {
+            for (var i = 0; i < lessonTasks.length; i++) {
+                var lessonTask = lessonTasks[i];
+                var lessonTaskId  = lessonTask.lessonTaskId;
+                var electTurnResultDrop = _electTurnResultDrop.get(lessonTask.lessonTaskId);
+                if(electTurnResultDrop!= null){
+                    //TODO  退课待审批
+                    button.text(Help.get_i18n('Drop Class')+','+Help.get_i18n('Pending Approval')).attr('class','btn btn-xs btn-default').prop('disabled', 'disabled');
+                }else if (_studiedLessonTask.containsKey(lessonTask.lessonTaskId)) {
+                    if(getElectTurnSetting('only_drop') || getElectTurnSetting('undo_elect')){
+                        button.text(Help.get_i18n('Drop Class')).attr('class','btn btn-xs btn-danger').prop('action', 'undo_elect');
+                    } else {
+                        button.text(Help.get_i18n('Studied')).attr('class','btn btn-xs btn-success').prop('disabled', 'disabled');
+                    }
+                    return;
+                } else if (_electTurnResult.containsKey(lessonTask.lessonTaskId) && _electTurnResult.get(lessonTask.lessonTaskId)['electStatus'] != 0) {
+                    if( !getElectTurnSetting('only_drop')){
+                        button.text(Help.get_i18n('DeElect Class')).attr('class','btn btn-xs btn-primary').prop('action', 'de_elect');
+                    } else if(_electTurnResult.get(lessonTaskId)['electStatus'] == 1
+                        ||  _electTurnResult.get(lessonTaskId)['electStatus'] == 2
+                        ||  _electTurnResult.get(lessonTaskId)['electStatus'] == 3 ){
+                        button.text(Help.get_i18n('Submitted to Be Approved')).attr('class','btn btn-xs btn-primary').prop('disabled', 'disabled');
+                    }
+                    return;
+                }else {
+                    if(getElectTurnSetting('only_drop')){
+                        button.remove();
+                    }else if (!validatePrerequisiteCourseRule(lessonTask)) {
+                        button.text(Help.get_i18n('Prerequisite Course Inconformity')).attr('class','btn btn-xs btn-default').prop('disabled', 'disabled');
+                    } else if(remainSlots  == 0){
+                        button.html(Help.get_i18n('Notify Vacancy')).attr('class','btn btn-xs btn-info btn-notify-vacancy');
+                        button.parents('div.lesson-task').addClass('lesson-task-vacancy');
+                    } else {
+                        button.text(Help.get_i18n('Elect Class')).attr('class','btn btn-xs btn-success').prop('action', 'do_elect');
+                    }
+                }
+            }
+        } else if (lessonTasks instanceof Object) {
+            var electTurnResultDrop = _electTurnResultDrop.get(lessonTasks.lessonTaskId);
+            if(electTurnResultDrop!= null){
+                //TODO  退课待审批
+                button.text(Help.get_i18n('Drop Class')+','+Help.get_i18n('Pending Approval')).attr('class','btn btn-xs btn-default').prop('disabled', 'disabled');
+            }else if (_studiedLessonTask.containsKey(lessonTasks.lessonTaskId)) {
+                if(getElectTurnSetting('only_drop') || getElectTurnSetting('undo_elect')){
+                    button.text(Help.get_i18n('Drop Class')).attr('class','btn btn-xs btn-danger').prop('action', 'undo_elect');
+                } else {
+                    button.text(Help.get_i18n('Studied')).attr('class','btn btn-xs btn-success').prop('disabled', 'disabled');
+                }
+            } else if (_electTurnResult.containsKey(lessonTasks.lessonTaskId)) {
+                if( !getElectTurnSetting('only_drop')){
+                    button.text(Help.get_i18n('DeElect Class')).attr('class','btn btn-xs btn-primary').prop('action', 'de_elect');
+                }else if(_electTurnResult.get(lessonTaskId)['electStatus'] == 1
+                    ||  _electTurnResult.get(lessonTaskId)['electStatus'] == 2
+                    ||  _electTurnResult.get(lessonTaskId)['electStatus'] == 3 ){
+                    button.text(Help.get_i18n('Submitted to Be Approved')).attr('class','btn btn-xs btn-primary').prop('disabled', 'disabled');
+                }
+            }else {
+                if(getElectTurnSetting('only_drop')){
+                    button.remove();
+                }else if (!validatePrerequisiteCourseRule(lessonTasks)) {
+                    button.text(Help.get_i18n('Prerequisite Course Inconformity')).attr('class','btn btn-xs btn-default').prop('disabled', 'disabled');
+                }else if(remainSlots  == 0){
+                    button.html(Help.get_i18n('Notify Vacancy')).attr('class','btn btn-xs btn-info btn-notify-vacancy');
+                    button.parents('div.lesson-task').addClass('lesson-task-vacancy');
+                }else {
+                    button.text(Help.get_i18n('Elect Class')).attr('class','btn btn-xs btn-success').prop('action', 'do_elect');
+                }
+            }
+
+        }
+    };
+    /**
+     * 判断显示购物车选课按钮状态、文本及功能
+     * @param button
+     * @param lessonTasks
+     * @param remainSlots
+     */
+    var electCartText = function (button, lessonTasks,remainSlots) {
+        if (_isReadonly) {
+            button.prop('disabled', 'disabled');
+        }
+        if (lessonTasks instanceof Array) {
+            for (var i = 0; i < lessonTasks.length; i++) {
+                var title = "";
+                var lessonTask = lessonTasks[i];
+                var electTurnResultDrop = _electTurnResultDrop.get(lessonTask.lessonTaskId);
+                if(electTurnResultDrop!= null){
+                    //TODO  退课待审批状态处理
+                    title = Help.get_i18n('Drop Class')+','+Help.get_i18n('Pending Approval');
+                    button.html('<i class="fa fa-cog"></i>').prop('disabled', 'disabled');
+                }else if (_studiedLessonTask.containsKey(lessonTask.lessonTaskId)) {
+                    if(getElectTurnSetting('only_drop') || getElectTurnSetting('undo_elect')){
+                        title = Help.get_i18n('Drop Class');
+                        button.prop('action', 'undo_elect');
+                    } else {
+
+                        button.html('<i class="fa fa-check"></i>').prop('disabled', 'disabled');
+                    }
+                    return;
+                } else if (_electTurnResult.containsKey(lessonTask.lessonTaskId)) {
+                    if(getElectTurnSetting('only_drop') || getElectTurnSetting('de_elect')){
+                        title = Help.get_i18n('DeElect Class');
+                        button.prop('action', 'de_elect');
+                    } else if(_electTurnResult.get(lessonTaskId)['electStatus'] == 1
+                        ||  _electTurnResult.get(lessonTaskId)['electStatus'] == 2
+                        ||  _electTurnResult.get(lessonTaskId)['electStatus'] == 3 ){
+                        title = Help.get_i18n('Submitted to Be Approved');
+                        button.html('<i class="fa fa-check"></i>').prop('disabled', 'disabled');
+                    }
+                } else {
+                    if (!validatePrerequisiteCourseRule(lessonTask)) {
+                        title = Help.get_i18n('Prerequisite Course Inconformity');
+                        button.addClass('btn-default').prop('disabled', 'disabled');
+                    } else if(remainSlots  == 0){
+                        title = Help.get_i18n('No slots');
+                        button.addClass('btn-default').prop('disabled', 'disabled').html(Help.get_i18n('No slots'));
+                    }else {
+                        title = Help.get_i18n('Elect Class');
+                        button.prop('title', Help.get_i18n('Elect Class')).addClass('btn-info').prop('action', 'do_elect');
+                    }
+                }
+                button.al_popover({
+                    placement: 'bottom',
+                    container: 'body',
+                    trigger: 'hover',
+                    html: true,
+                    content:function(){
+                        var $span = $('<span>'+title+'</span>');
+                        return $span;
+                    }
+                });
+            }
+        } else if (lessonTasks instanceof Object) {
+            var title = "";
+            var lessonTaskId = lessonTasks.lessonTaskId;
+            var electTurnResultDrop = _electTurnResultDrop.get(lessonTasks.lessonTaskId);
+            if(electTurnResultDrop!= null){
+                //TODO  退课待审批
+                title = Help.get_i18n('Drop Class')+','+Help.get_i18n('Pending Approval');
+                button.html('<i class="fa fa-cog"></i>').prop('disabled', 'disabled');
+            }else if (_studiedLessonTask.containsKey(lessonTasks.lessonTaskId)) {
+                if(getElectTurnSetting('only_drop') || getElectTurnSetting('undo_elect')){
+                    button.prop('action', 'undo_elect');
+                    title = Help.get_i18n('Drop Class');
+                } else {
+                    title = Help.get_i18n('Studied');
+                    button.html('<i class="fa fa-check"></i>').prop('disabled', 'disabled');
+                }
+
+            } else if (_electTurnResult.containsKey(lessonTasks.lessonTaskId)) {
+                if(getElectTurnSetting('only_drop') || getElectTurnSetting('de_elect')){
+                    title = Help.get_i18n('DeElect Class');
+                    button.prop('action', 'de_elect');
+                } else if(_electTurnResult.get(lessonTaskId)['electStatus'] == 1
+                    ||  _electTurnResult.get(lessonTaskId)['electStatus'] == 2
+                    ||  _electTurnResult.get(lessonTaskId)['electStatus'] == 3 ){
+                    title = Help.get_i18n('Submitted to Be Approved');
+                    button.html('<i class="fa fa-check"></i>').prop('disabled', 'disabled');
+                }
+            } else {
+                if (!validatePrerequisiteCourseRule(lessonTasks)) {
+                    title = Help.get_i18n('Prerequisite Course Inconformity');
+                    button.addClass('btn-default').prop('disabled', 'disabled');
+                } else if(remainSlots  == 0){
+                    title = Help.get_i18n('No slots');
+                    button.addClass('btn-default').prop('disabled', 'disabled').html(Help.get_i18n('No slots'));
+                }else {
+                    button.addClass('btn-info').prop('action', 'do_elect');
+                    title = Help.get_i18n('Elect Class');
+                }
+            }
+            button.al_popover({
+                placement: 'bottom',
+                container: 'body',
+                trigger: 'hover',
+                html: true,
+                content:function(){
+                    var $span = $('<span>'+title+'</span>');
+                    return $span;
+                }
+            });
+        }
+    };
+    /**
+     * 验证按课程类型统计的学分
+     * @param courseTypeId
+     * @param totalCredit
+     * @returns {boolean}
+     */
+    var validateCourseTypeCredit = function(courseTypeId,totalCredit){
+        var result = true;
+        if(!getKeyElement('courseTypeCreditRestrain')){
+            return true;
+        }
+        if (_singleCourseTypeCredit.get(courseTypeId).length > 0) {
+            var combi_credits = _singleCourseTypeCredit.get(courseTypeId);
+            for(var i=0;i<combi_credits.length;i++){
+                var courseTypeCreditModel = _courseTypeCreditMap.get(combi_credits[i]);
+                var courseTypes = courseTypeCreditModel.courseTypeId.split(',');
+                var currentCourseTypeCredit = 0;
+                for(var c=0;c<courseTypes.length;c++){
+                    currentCourseTypeCredit+= _electedCredit.containsKey(courseTypes[c])?_electedCredit.get(courseTypes[c]):0;
+                    currentCourseTypeCredit+= _studiedCredit.containsKey(courseTypes[c])?_studiedCredit.get(courseTypes[c]):0;
+                }
+                var courseTypeMaxCredit = courseTypeCreditModel.maxCredit;
+                if ((totalCredit + currentCourseTypeCredit) > courseTypeMaxCredit) {
+                    result = false;
+                    alert(Help.get_i18n('Your choice of courses has exceeded the maximum credit of this type of course , please re-election!'));
+                    return result;
+                }
+            }
+        }
+        return result;
+    };
+    /**
+     * 验证学期学分规则
+     * @param judgeMinCredit
+     * @param courseTypeId
+     * @returns {boolean}
+     */
+    var validateTermCredit = function(termId,totalCredit,range){
+        var result = true;
+        if(!getKeyElement('termCreditRestrain')){
+            return true;
+        }
+        if(!range){
+            range = 'max';
+        }
+
+        if("min" == range && !getKeyElement('termMinCreditRestrain')){
+            return true;
+        }
+
+        var termCreditModel = _termCredit.get(termId);
+        if(termCreditModel != null){
+            var termMaxCredit = termCreditModel.maxCredit;
+            var termMinCredit = termCreditModel.minCredit;
+            var currentTermCredit = 0;
+            currentTermCredit +=  _electedTermCredit.containsKey(termId)?_electedTermCredit.get(termId):0;
+            currentTermCredit +=  _studiedTermCredit.containsKey(termId)?_studiedTermCredit.get(termId):0;
+
+            if(range == 'max'){
+                if ((currentTermCredit+totalCredit) > termMaxCredit) {
+                    result = false;
+                    alert(Help.get_i18n('Your choice of credits has exceeded the maximum credits required for the term,please re-election!'));
+                    return result;
+                }
+            }else if(range == 'min'){
+                if ((currentTermCredit-totalCredit) < termMinCredit) {
+                    result = false;
+                    alert(Help.get_i18n('Your choice of credits has exceeded the minimum credits required for the term,please re-election!'));
+                    return result;
+                }
+            }
+        }
+        return result;
+    };
+    /**
+     * 统计总学分
+     */
+    var statisticTotalCredit = function(){
+
+        _$this.find('.cart-page').find('.cart-statistic-course-type').empty();
+        _$this.find('.cart-page').find('.cart-statistic-term').empty();
+
+        var courseTypeElectedTotalCredit = 0;
+        for(var c=0;c<_containCourseType.length;c++){
+            var courseTypeId = _containCourseType[c];
+            courseTypeElectedTotalCredit += _electedCredit.containsKey(courseTypeId)? _electedCredit.get(courseTypeId):0;
+            courseTypeElectedTotalCredit += _studiedCredit.containsKey(courseTypeId)?_studiedCredit.get(courseTypeId):0;
+        }
+        var termElectedTotalCredit = 0;
+        for(var t=0;t<_containTermId.length;t++){
+            var termId = _containTermId[t];
+            termElectedTotalCredit += _electedTermCredit.containsKey(termId)?_electedTermCredit.get(termId):0;
+            termElectedTotalCredit += _studiedTermCredit.containsKey(termId)?_studiedTermCredit.get(termId):0;
+        }
+        _$this.find('.cart-page').find('.course-type-electedTotalCredit').html(courseTypeElectedTotalCredit);
+        _$this.find('.cart-page').find('.term-electedTotalCredit').html(termElectedTotalCredit);
+
+        var canSubmit = true;
+        if(getKeyElement('courseTypeCreditRestrain')){
+            for(var cc=0;cc<_containCourseType.length;cc++){
+                var courseTypeId = _containCourseType[cc];
+                if (_singleCourseTypeCredit.get(courseTypeId).length > 0) {
+                    var combi_credits = _singleCourseTypeCredit.get(courseTypeId);
+                    for(var i=0;i<combi_credits.length;i++){
+                        var courseTypeCreditModel = _courseTypeCreditMap.get(combi_credits[i]);
+                        var courseTypes = courseTypeCreditModel.courseTypeId.split(',');
+                        var currentCourseTypeCredit = 0;
+                        for(var c=0;c<courseTypes.length;c++){
+                            var electedCredit = _electedCredit.containsKey(courseTypes[c])?_electedCredit.get(courseTypes[c]):0;
+                            var studiedCredit = _studiedCredit.containsKey(courseTypes[c])?_studiedCredit.get(courseTypes[c]):0;
+                            currentCourseTypeCredit+= parseFloat(electedCredit)+parseFloat(studiedCredit);
+                        }
+                        var courseTypeMinCredit = courseTypeCreditModel.minCredit;
+                        var courseTypeMaxCredit = courseTypeCreditModel.maxCredit;
+                        var $li = $('<li coursetypecreditid="'+courseTypeCreditModel.courseTypeCreditId+'">' +
+                            '<span class="course-type-name"><label>'+(window.lang == "zh_CN"?courseTypeCreditModel.courseTypeName:courseTypeCreditModel.courseTypeNameEn)+'</label></span>' +
+                            '<span>'+Help.get_i18n('Elected Credit')+':<span class="electedCredit">'+currentCourseTypeCredit+'</span></span>' +
+                            '<span>'+Help.get_i18n('ElectClass_MinCredit')+':'+courseTypeMinCredit+'</span>' +
+                            '<span>'+Help.get_i18n('ElectClass_MaxCredit')+':'+courseTypeMaxCredit+'</span>' +
+                            '<span class="validate-result"></span></li>');
+                        _$this.find('.cart-page').find('.cart-statistic-course-type').append($li);
+                        if (currentCourseTypeCredit< courseTypeMinCredit) {
+                            canSubmit =  false;
+                            $li.addClass('text-danger');
+                            $li.find('.validate-result').html(Help.get_i18n('Also need')+(courseTypeMinCredit - currentCourseTypeCredit) + Help.get_i18n('Credit'));
+                        }else if (currentCourseTypeCredit >= courseTypeMinCredit && currentCourseTypeCredit <= courseTypeMaxCredit) {
+                            $li.addClass('text-success');
+                            $li.find('.validate-result').html(Help.get_i18n('Finished'))
+                        }
+                    }
+                }else{
+                    var courseTypeModel = _courseTypeMap.get(courseTypeId);
+                    var electedCredit = _electedCredit.containsKey(courseTypeId)?_electedCredit.get(courseTypeId):0;
+                    var studiedCredit = _studiedCredit.containsKey(courseTypeId)?_studiedCredit.get(courseTypeId):0;
+                    var currentCourseTypeCredit = parseFloat(electedCredit)+parseFloat(studiedCredit);
+                    var $li = $('<li coursetypeid="'+courseTypeModel.courseTypeId+'">' +
+                        '<span class="course-type-name"><label>'+(window.lang == "zh_CN"?courseTypeModel.courseTypeName:courseTypeModel.courseTypeNameEn)+'</label></span>' +
+                        '<span>'+Help.get_i18n('Elected Credit')+':<span class="electedCredit">'+currentCourseTypeCredit+'</span></span>' +
+                        '<span>'+Help.get_i18n('ElectClass_MinCredit')+':'+Help.get_i18n('Unlimited')+'</span>' +
+                        '<span>'+Help.get_i18n('ElectClass_MaxCredit')+':'+Help.get_i18n('Unlimited')+'</span>' +
+                        '<span class="validate-result"></span></li>');
+                    _$this.find('.cart-page').find('.cart-statistic-course-type').append($li);
+                    $li.addClass('text-success');
+                    $li.find('.validate-result').html(Help.get_i18n('Finished'));
+                }
+            }
+        }
+
+        if(getKeyElement('termCreditRestrain')){
+            for(var t=0;t<_containTermId.length;t++){
+                var termId = _containTermId[t];
+                var termModel = _termModels.get(termId);
+                var termCreditModel = _termCredit.get(termId);
+                var electedCredit = _electedTermCredit.containsKey(termId)?_electedTermCredit.get(termId):0;
+                var studiedCredit = _studiedTermCredit.containsKey(termId)?_studiedTermCredit.get(termId):0;
+                var currentTermCredit = parseFloat(electedCredit)+parseFloat(studiedCredit);
+
+                var $li = null;
+                if(termCreditModel == null){
+                    $li = $('<li termid="'+termId+'">' +
+                        '<span class="term-name"><label>'+termModel.termName+'</label></span>' +
+                        '<span>'+Help.get_i18n('Elected Credit')+':<span class="electedCredit">'+currentTermCredit+'</span></span>' +
+                        '<span>'+Help.get_i18n('ElectClass_MinCredit')+':'+Help.get_i18n('Unlimited')+'</span>' +
+                        '<span>'+Help.get_i18n('ElectClass_MaxCredit')+':'+Help.get_i18n('Unlimited')+'</span>' +
+                        '<span class="validate-result"></span></li>');
+                    $li.addClass('text-success');
+                    $li.find('.validate-result').html(Help.get_i18n('Finished'));
+                }else{
+                    var minCredit = termCreditModel.minCredit;
+                    var maxCredit = termCreditModel.maxCredit;
+                    $li = $('<li termid="'+termId+'">' +
+                        '<span class="term-name"><label>'+termModel.termName+'</label></span>' +
+                        '<span>'+Help.get_i18n('Elected Credit')+':<span class="electedCredit">'+currentTermCredit+'</span></span>' +
+                        '<span>'+Help.get_i18n('ElectClass_MinCredit')+':'+minCredit+'</span>' +
+                        '<span>'+Help.get_i18n('ElectClass_MaxCredit')+':'+maxCredit+'</span>' +
+                        '<span class="validate-result"></span></li>');
+                    if ( currentTermCredit< minCredit ) {
+                        $li.addClass('text-danger');
+                        canSubmit =  false;
+                        $li.find('.validate-result').html(Help.get_i18n('Also need')+(minCredit - currentTermCredit) + Help.get_i18n('Credit'));
+                    }else if (currentTermCredit >= minCredit && currentTermCredit <= maxCredit) {
+                        $li.addClass('text-success');
+                        $li.find('.validate-result').html(Help.get_i18n('Finished'));
+                    }
+                }
+                _$this.find('.cart-page').find('.cart-statistic-term').append($li);
+            }
+        }
+        if(canSubmit){
+            _$this.find('.continue-bottom').hide();
+            _$this.find('p.elect-result-tip').removeClass('text-danger').removeClass('text-success');
+
+            if(getKeyElement('showCheckCreditTip')){
+                _$this.find('p.elect-result-tip').addClass('text-danger').html(Help.get_i18n('ElectClass_CheckCreditTip'));
+            }else {
+                _$this.find('p.elect-result-tip').addClass('text-success').html(Help.get_i18n('Your choice of credits has been met!'));
+            }
+        }else{
+            _$this.find('.continue-bottom').show();
+            _$this.find('p.elect-result-tip').removeClass('text-danger').removeClass('text-success');
+
+            if(getKeyElement('showCheckCreditTip')){
+                _$this.find('p.elect-result-tip').addClass('text-danger').html(Help.get_i18n('ElectClass_CheckCreditTip'));
+            }else{
+                _$this.find('p.elect-result-tip').addClass('text-danger').html(Help.get_i18n('Your choice of credit has not yet met the requirements, please continue to course!'));
+            }
+        }
+    };
+    /**
+     * 验证冲突
+     * @param lessonTaskId
+     * @returns {*}
+     */
+    var validateConflict = function (lessonTaskId) {
+        var result = [];
+        if(_lessonCalendarConflict.containsKey(lessonTaskId)){
+            var conflictLessonTasks = _lessonCalendarConflict.get(lessonTaskId);
+            for(var c=0;c<conflictLessonTasks.length;c++){
+                var conflictLessonTask = conflictLessonTasks[c];
+                var conflictLessonTaskId = conflictLessonTask['conflictLessonTaskId'];
+
+                if(_studiedLessonTask.containsKey(conflictLessonTaskId)){
+                    if(conflictLessonTask['conflictRatio'] >= parseFloat(_conflictRatio)){
+                        result.push(conflictLessonTask);
+                    }else{
+                        var lessonCalendarConflictModel =  getLessonCalendarConflictModel(conflictLessonTaskId,lessonTaskId);
+                        if(lessonCalendarConflictModel != null){
+                            if(lessonCalendarConflictModel['conflictRatio'] >= parseFloat(_conflictRatio)){
+                                result.push(conflictLessonTask);
+                            }
+                        }
+                    }
+                }else if(_electTurnResult.containsKey(conflictLessonTaskId)){
+                    if(conflictLessonTask['conflictRatio'] >= parseFloat(_conflictRatio)){
+                        result.push(conflictLessonTask);
+                    }else{
+                        var lessonCalendarConflictModel =  getLessonCalendarConflictModel(conflictLessonTaskId,lessonTaskId);
+                        if(lessonCalendarConflictModel != null){
+                            if(lessonCalendarConflictModel['conflictRatio'] >= parseFloat(_conflictRatio)){
+                                result.push(conflictLessonTask);
+                            }
+                        }
+                    }
+                }
+            }
+            return result;
+        }
+        return false;
+    };
+    /**
+     * 获取两个课程之前的冲突情况
+     * @param lessonTaskId
+     * @param conflictLessonTaskId
+     * @returns {*}
+     */
+    var getLessonCalendarConflictModel = function(lessonTaskId,conflictLessonTaskId){
+        if(_lessonCalendarConflict.containsKey(lessonTaskId)){
+            var conflictLessonTasks = _lessonCalendarConflict.get(lessonTaskId);
+            for(var c=0;c<conflictLessonTasks.length;c++){
+                var conflictLessonTask = conflictLessonTasks[c];
+                if(conflictLessonTask['conflictLessonTaskId'] == conflictLessonTaskId ){
+                    return conflictLessonTask;
+                }
+            }
+        }
+        return null;
+    };
+    /**
+     * 验证先修课规则
+     * @param lessonTasks
+     * @returns {boolean}
+     */
+    var validatePrerequisiteCourseRule = function(lessonTasks){
+        if (lessonTasks instanceof Array) {
+            for(var l=0;l<lessonTasks.length;l++){
+                var lessonTask = _lessonTaskMap.get(lessonTasks[l].lessonTaskId);
+                if(_prerequisiteCourse.get(lessonTask.courseId) == null){
+                    continue;
+                }
+
+                if(_prerequisiteProfession || _prerequisiteExempt.containsKey(lessonTask.courseId)){
+                    continue;
+                }
+
+                var prerequisiteCourseRule = JSON.parse(_prerequisiteCourse.get(lessonTask.courseId)['prerequisiteRule']);
+                var expression = "";
+                if(prerequisiteCourseRule.length == 0)
+                    continue;
+                try{
+                    var isAllNull = true;
+                    for(var p=0;p<prerequisiteCourseRule.length;p++){
+                        var rule = prerequisiteCourseRule[p];
+                        if('course' == rule.type){
+                            var courseId = rule.courseId;
+                            var option = rule.option;
+                            if("electedCredit" == option){
+                                if(_electedCourseCredit.get(courseId == null)){
+                                    expression += null;
+                                }else{
+                                    expression += _electedCourseCredit.get(courseId);
+                                    isAllNull = false;
+                                }
+                            }else if("obtainedCredit" == option){
+                                if(_studentObtainedCredit.get(courseId) == null){
+                                    expression += null;
+                                }else{
+                                    expression += _studentObtainedCredit.get(courseId);
+                                    isAllNull = false;
+                                }
+                            }else if("grade" == option){
+                                if(_studentScore.get(courseId) == null){
+                                    expression += null;
+                                }else{
+                                    expression += _studentScore.get(courseId);
+                                    isAllNull = false;
+                                }
+                            }
+                        }else if('input' == rule.type){
+                            expression += rule.value;
+                        }else{
+                            expression += rule.symbol;
+                        }
+                    }
+                    if(eval(expression)){
+                        return true;
+                    }else{
+                        return false;
+                    }
+                }catch(e){
+                    return false;
+                }
+            }
+            return true;
+        }else{
+            var lessonTask = _lessonTaskMap.get(lessonTasks.lessonTaskId);
+            if(_prerequisiteCourse.get(lessonTask.courseId) == null){
+                return true;
+            }
+
+            if(_prerequisiteProfession || _prerequisiteExempt.containsKey(lessonTask.courseId)){
+                return true;
+            }
+
+            var prerequisiteCourseRule = _prerequisiteCourse.get(lessonTask.courseId)['prerequisiteRule'];
+            var expression = "";
+            if(prerequisiteCourseRule.length == 0)
+                return true;
+            try{
+                var isAllNull = true;
+                for(var i=0;i<prerequisiteCourseRule.length;i++){
+                    var rule = prerequisiteCourseRule[i];
+                    if('course' == rule.type){
+                        var courseId = rule.courseId;
+                        var option = rule.option;
+                        if("electedCredit" == option){
+                            if(_electedCourseCredit.get(courseId == null)){
+                                expression += null;
+                            }else{
+                                expression += _electedCourseCredit.get(courseId);
+                                isAllNull = false;
+                            }
+                        }else if("obtainedCredit" == option){
+                            if(_studentObtainedCredit.get(courseId) == null){
+                                expression += null;
+                            }else{
+                                expression += _studentObtainedCredit.get(courseId);
+                                isAllNull = false;
+                            }
+
+                        }else if("grade" == option){
+                            if(_studentScore.get(courseId) == null){
+                                expression += null;
+                            }else{
+                                expression += _studentScore.get(courseId);
+                                isAllNull = false;
+                            }
+                        }
+                    }else if('input' == rule.type){
+                        expression += rule.value;
+                    }else{
+                        expression += rule.symbol;
+                    }
+                }
+                if(eval(expression)){
+                    return true;
+                }else{
+                    return false;
+                }
+            }catch(e){
+                return false;
+            }
+            return true;
+        }
+    };
+    /**
+     * 空数据内容提示
+     */
+    var emptyCartTip = function(){
+        if(_$this.find('.cart-page > .cart-page-lessontask').find('div.lesson-task').length == 0){
+            var $emptyTip = $("<div class='empty-tip'><span class='text-info'>"+Help.get_i18n("You do not have a record!")+"</span></div>");
+            var $button = $('<button type="button" class="btn btn-info btn-sm" style="width: 200px;display: block;margin: auto;margin-top: 20px;;">'+Help.get_i18n('Elect Class')+'</button>');
+            $button.on('click',function(){
+                _$this.find('.cart-page-link').trigger('click');
+            });
+            $emptyTip.append($button);
+            if(_$this.find('.cart-page > .cart-page-lessontask').find('.empty-tip').length == 0){
+                _$this.find('.cart-page > .cart-page-lessontask').append($emptyTip);
+            }
+        }
+    };
+    /**
+     * 初始化轮次选课规则
+     * @param electTurn
+     */
+    var initElectTurnSetting = function (electTurn) {
+        var mode = '';
+        if ("DROP" == electTurn.electMode) {
+            mode = '<span class="label label-warning elect-turn-mode">' + electTurn.electModeName + '</span>';
+        } else if ("TIME" == electTurn.electMode) {
+            mode = '<span class="label label-danger elect-turn-mode">' + electTurn.electModeName + '</span>';
+        } else if ("POINT" == electTurn.electMode) {
+            mode = '<span class="label label-primary elect-turn-mode">' + electTurn.electModeName + '</span>';
+        } else if ("MASSELECTION" == electTurn.electMode) {
+            mode = '<span class="label label-info elect-turn-mode">' + electTurn.electModeName + '</span>';
+        }
+
+        _$this.find('.drop-mode-page-header-left').html('<label class="elect-turn-name" style="font-size: 20px;margin-right: 10px;">' + electTurn.electTurnName + '</label>' + mode);
+
+        if (electTurn.modeSetting.length > 0) {
+            var modeSetting = electTurn.modeSetting;
+            for (var i = 0; i < modeSetting.length; i++) {
+                var item = modeSetting[i];
+                _electTurnSetting.put(item.name, item.value);
+            }
+        }
+    };
+    /**
+     * 获取轮次选课规则
+     * @param type
+     * @returns {*}
+     */
+    var getElectTurnSetting = function (type) {
+        var value = _electTurnSetting.get(type);
+        if (value == null) {
+            return false;
+        } else {
+            return value;
+        }
+    };
+    /**
+     * 提交选课
+     * @param $btn
+     * @returns {boolean}
+     */
+    var do_elect = function ($btn) {
+        if(!_lcc){
+            $.tip.warning(Help.get_i18n('Getting course scheduling data, please submit it later!'),'bottom-center');
+            return false;
+        }
+        var electTurnLessonTaskIds = [];
+        var electLessonTasks = [];
+        var courseGroupId = $btn.closest('div.lesson-task').attr('coursegroupid');
+        // 验证如果选择的课程有课程组,则验证课程组的选择学分
+        if (courseGroupId && courseGroupId.length > 0) {
+            var $divs = $('div.lesson-task[coursegroupid="' + courseGroupId + '"]');
+            var $elected = $divs.find('input[type="checkbox"]:checked');
+            if ($elected.length == 0) {
+                alert(Help.get_i18n('Please select one course at least!'));
+                return;
+            }
+            var selectedCredit = 0;
+            var courseGroupMaxCredit = _courseGroupMap.get(courseGroupId).maxCredit;
+            var courseGroupMinCredit = _courseGroupMap.get(courseGroupId).minCredit;
+            var tmp_courseTypeSelected = new Map();
+            var tmp_termSelected = new Map();
+
+            for (i = 0; i < $elected.length; i++) {
+                var checkbox = $elected[i];
+                var lessonTaskId = $(checkbox).closest('div.lesson-task').attr('lessontaskid');
+                var lessonTask = _lessonTaskMap.get(lessonTaskId);
+                var courseTypeId = lessonTask.courseType;
+                var termId = lessonTask.termId;
+                var totalCredit = lessonTask.totalCredit;
+                electTurnLessonTaskIds.push(lessonTask.electTurnLessonTaskId);
+                selectedCredit += totalCredit;
+
+                electLessonTasks.push(lessonTaskId);
+                //从课程组中拆分出各个课程类型的学分
+                if (tmp_courseTypeSelected.containsKey(courseTypeId)) {
+                    tmp_courseTypeSelected.put(courseTypeId, tmp_courseTypeSelected.get(courseTypeId) + totalCredit);
+                } else {
+                    tmp_courseTypeSelected.put(courseTypeId, totalCredit);
+                }
+
+                //从课程组中拆分出各个学期的学分
+                if (tmp_termSelected.containsKey(termId)) {
+                    tmp_termSelected.put(termId, tmp_termSelected.get(termId) + totalCredit);
+                } else {
+                    tmp_termSelected.put(termId, totalCredit);
+                }
+            }
+            //验证选择学分,是否超过课程组设置的最大学分
+            if (selectedCredit > courseGroupMaxCredit) {
+                alert(Help.get_i18n("Your choice of courses has exceeded the maximum credit course groups, please re-election!"));
+                return;
+            } else if (selectedCredit < courseGroupMinCredit) { //验证选择学分,是否小于课程组设置的最小学分
+                alert(Help.get_i18n("Your choice of courses does not reach the minimum credits of the course groups, plus the election !"));
+                return;
+            }
+
+            // 验证选择课程中拆分出来课程按课程类型分类,验证是否满足课程类型设置的最大最小学分限制
+            var tmp_courseTypeSelected_keys = tmp_courseTypeSelected.keys();
+            for (var i = 0; i < tmp_courseTypeSelected_keys.length; i++) {
+                var courseTypeId = tmp_courseTypeSelected_keys[i];
+                var selectedCredit = tmp_courseTypeSelected.get(courseTypeId);
+                if(!validateCourseTypeCredit(courseTypeId,selectedCredit)){
+                    return false;
+                }
+            }
+
+            // 验证选择课程中拆分出来课程按学期分类,验证是否满足学期设置的最大最小学分限制
+            var tmp_termSelected_keys = tmp_termSelected.keys();
+            for (var i = 0; i < tmp_termSelected_keys.length; i++) {
+                var termId = tmp_termSelected_keys[i];
+                var selectedCredit = tmp_termSelected.get(termId);
+                if(!validateTermCredit(termId,selectedCredit)){
+                    return false;
+                }
+            }
+        } else { // 如果选择的课程没有分组,则按单个课程验证
+            var lessonTask = $btn.closest('div.lesson-task').data();
+            var courseTypeId = lessonTask.courseType;
+            var lessonTaskId = lessonTask.lessonTaskId;
+            electTurnLessonTaskIds.push(lessonTask.electTurnLessonTaskId);
+            electLessonTasks.push(lessonTaskId);
+
+            // 验证选择课程中拆分出来课程按学期分类,验证是否满足学期设置的最大最小学分限制
+            if(!validateCourseTypeCredit(courseTypeId,lessonTask.totalCredit)){
+                return;
+            }else if(!validateTermCredit(lessonTask.termId,lessonTask.totalCredit)){
+                return;
+            }
+        }
+        // 根据选择的课程进行冲突验证
+        for(var l=0;l<electLessonTasks.length;l++) {
+            var lessonTaskId = electLessonTasks[l];
+            var validateConflictResult = validateConflict(lessonTaskId);
+            if(validateConflictResult!=false){
+                var conflictText = Help.get_i18n('The course is in conflict with the following courses')+"\n\n";
+                for(var c=0;c<validateConflictResult.length;c++){
+                    var item = validateConflictResult[c];
+                    conflictText += item['conflictLessonTaskName']+'\t\t\t\t\t\t'+ item['cfTimes']+Help.get_i18n('times')+'\n'
+                }
+                alert(conflictText);
+                return false;
+            }
+        }
+        // 验证选择课程是否有初验课需要选择
+        var hasExperimentCourse = false;
+        for(var l=0;l<electLessonTasks.length;l++) {
+            var regularLessonTask = _lessonTaskMap.get(electLessonTasks[l]);
+            var experimentCourse = _experimentCourse.get(regularLessonTask.curriculumId);
+            if(experimentCourse != null && experimentCourse.length > 0){
+                hasExperimentCourse = true;
+            }
+        }
+        //弹出选择实验课窗口
+        if(hasExperimentCourse){
+            $.al_modal({
+                size: 'modal-sm',
+                title: Help.get_i18n('Elect Experiment Course'),
+                autoHide: false,
+                btnCancelText: Help.get_i18n('Close'),
+                showBtnCancel: true,
+                showBtnConfirm: true ,
+                backdrop:'static',
+                keyboard:false,
+                content: function ($modal) {
+                    for(var l=0;l<electLessonTasks.length;l++) {
+                        var regularLessonTask = _lessonTaskMap.get(electLessonTasks[l]);
+                        var experimentCourse = _experimentCourse.get(regularLessonTask.curriculumId);
+                        if(experimentCourse == null || experimentCourse.length == 0){
+                            continue;
+                        }
+                        var $row = $('<div class="row"></div>');
+                        for (var e = 0; e < experimentCourse.length; e++) {
+                            var lessonTask = experimentCourse[e];
+                            var $course = $('<div class="col-md-8 col-sm-8 col-xs-8 course">' +
+                                '<div class="checkbox"><label><input type="checkbox">' + (lessonTask.lessonClassName + " - " + lessonTask.lessonClassShortName) + '</label></div>' +
+                                '</div>');
+                            var $slots = $('<div class="col-md-4 col-sm-4 col-xs-4"><div class="slots" style="width: 100%;margin-top: 8px;"></div></div>');
+                            $course.attr({
+                                lessontaskid: lessonTask.lessonTaskId
+                            });
+                            $course.data(lessonTask);
+                            //处理购物车中的实验课
+                            $course.find('input').change(function () {
+                                var checked = $(this)[0].checked;
+                                var $course = $(this).parents('div.course');
+                                var lessonTask = $course.data();
+                                $(this).parents('div.course').siblings().find('input').attr('checked', !checked);
+                            });
+                            var $process = $('<div class="progress" style="margin-bottom:10px;">'
+                                + '<div class="progress-bar progress-bar-success" role="progressbar" aria-valuemax="100">'
+                                + '</div>'
+                                + '</div>');
+                            var maxNum = parseFloat(lessonTask.maxNum);
+                            var submittedNum = parseFloat(lessonTask.studentNum);
+                            var percent = maxNum == 0 ? '0.00%' : (Math.round((submittedNum / maxNum) * 10000) / 100).toFixed(2) + '%';
+                            $process.find('.progress-bar').append((lessonTask.studentNum > 0?lessonTask.studentNum:0) + '/'+ lessonTask.maxNum).css('width', percent).css('color','#404040');
+                            $slots.find('.slots').html($process);
+                            $slots.find('.slots').al_popover({
+                                placement: 'bottom',
+                                container: 'body',
+                                trigger: 'hover',
+                                html: true,
+                                content:function(){
+                                    var $ul = $('<ul class="list-unstyled" style="margin-bottom: 0px;"></ul>');
+                                    $ul.append("<li>"+Help.get_i18n('Submitted Count')+":"+"<span class='pull-right'>"+lessonTask.studentNum+"</span></li>");
+                                    $ul.append("<li>"+Help.get_i18n('Min Num')+":"+"<span class='pull-right'>"+(lessonTask.minNum==""?Help.get_i18n('Unlimited'):lessonTask.minNum)+"</span></li>");
+                                    $ul.append("<li>"+Help.get_i18n('Max Num')+":"+"<span class='pull-right'>"+(lessonTask.maxNum==""?Help.get_i18n('Unlimited'):lessonTask.maxNum)+"</span></li>");
+                                    var $div = $('<div style="width: 150px;"></div>');
+                                    $div.html($ul);
+                                    return $div;
+                                }
+                            });
+                            if(submittedNum>=maxNum){
+                                $course.find('input').attr('disabled','disabled');
+                            }
+                            $row.append($course).append($slots);
+                        }
+                        var $div = $('<div class="experimentCourse-item"></div>').append('<h4>'+regularLessonTask.lessonClassName+" - "+regularLessonTask.lessonClassShortName+'</h4>');
+                        $div.append($row);
+                    }
+                    $modal.find('.modal-body').append($div);
+                },
+                confirm:function($modal){
+                    var electedEx = [];
+                    for(var l=0;l<electLessonTasks.length;l++) {
+                        var regularLessonTask = _lessonTaskMap.get(electLessonTasks[l]);
+                        var experimentCourse = _experimentCourse.get(regularLessonTask.curriculumId);
+                        if(experimentCourse != null){
+                            var e = 0;
+                            for (; e < experimentCourse.length; e++) {
+                                var lessonTask = experimentCourse[e];
+                                var $input = $modal.find('div.experimentCourse-item').find('div[lessontaskid="'+lessonTask.lessonTaskId+'"]').find('input');
+                                if($input[0].checked){
+                                    electedEx.push(lessonTask.lessonTaskId);
+                                    electTurnLessonTaskIds.push(_lessonTaskMap.get(lessonTask.lessonTaskId).electTurnLessonTaskId);
+                                    break;
+                                }
+                            }
+                            if(e == experimentCourse.length){
+                                alert('Please elect the experimental course!');
+                                return false;
+                            }
+                        }
+                    }
+                    // 验证实验课冲突情况
+                    for(var l=0;l<electedEx.length;l++) {
+                        var lessonTaskId = electedEx[l];
+                        var validateConflictResult = validateConflict(lessonTaskId);
+                        if(validateConflictResult!=false){
+                            var  conflictText = Help.get_i18n('The course is in conflict with the following courses')+"\n\n";
+                            for(var c=0;c<validateConflictResult.length;c++){
+                                var item = validateConflictResult[c];
+                                conflictText += item['conflictLessonTaskName']+'\t\t\t\t\t\t'+ item['cfTimes']+Help.get_i18n('times')+'\n'
+                            }
+                            alert(conflictText);
+                            return false;
+                        }
+                    }
+                    var data = {
+                        electTurnId: _electTurnId,
+                        autoElect: getElectTurnSetting('auto_elect'),
+                        lessonTasks: electTurnLessonTaskIds
+                    };
+                    $btn.button('loading');
+                    Request.ajax({
+                        type:'POST',
+                        async:true,
+                        url: 'tpm/doElect_ElectTurn.action',
+                        data: {jsonString: JSON.stringify(data)},
+                        success: function (result) {
+                            $btn.button('reset');
+                            $modal.modal('hide');
+                            if (result.success == false) {
+                                alert(result.errDesc+'\n\n'+Help.get_i18n('Try again'));
+                                refresh();
+                            } else {
+                                $.tip.success(Help.get_i18n("The record has been saved"), 'bottom-right');
+                                refresh();
+                            }
+                        },
+                        error:function(){
+                            refresh();
+                            $btn.button('reset');
+                            alert(Help.get_i18n('Try again'));
+                        }
+                    });
+                }
+            });
+        }else{
+            var data = {
+                electTurnId: _electTurnId,
+                autoElect: getElectTurnSetting('auto_elect'),
+                lessonTasks: electTurnLessonTaskIds
+            };
+            $btn.button('loading');
+            Request.ajax({
+                type:'POST',
+                async:true,
+                url: 'tpm/doElect_ElectTurn.action',
+                data: {jsonString: JSON.stringify(data)},
+                success: function (result) {
+                    $btn.button('reset');
+                    if (result.success == false) {
+                        alert(result.errDesc+'\n\n'+Help.get_i18n('Try again'));
+                        refresh();
+                        
+                    } else {
+                        $.tip.success(Help.get_i18n("The record has been saved"), 'bottom-right');
+                        refresh();
+                    }
+
+                },
+                error:function(){
+                    $btn.button('reset');
+                    alert(Help.get_i18n('Try again'));
+                }
+            });
+        }
+    };
+    /**
+     * 提交退选课
+     * @param $btn
+     */
+    var de_elect = function ($btn) {
+        var datas = [];
+        var lessonTaskIds = [];
+        var courseGroupId = $btn.closest('div.lesson-task').attr('coursegroupid');
+        if (courseGroupId && courseGroupId.length > 0) {
+            var $divs = $('div.lesson-task[coursegroupid="' + courseGroupId + '"]');
+            if (!confirm(Help.get_i18n('The same group of courses will be dropped,Whether to continue?'))) {
+                return;
+            }
+            var tmp_courseTypeSelected = new Map();
+            for (var i = 0; i < $divs.length; i++) {
+                var item = $divs[i];
+                var lessonTaskId = $(item).attr('lessontaskid');
+                var electResultId = $(item).attr('electresultid');
+                var courseTypeId = $(item).attr('coursetypeid');
+                if (electResultId) {
+                    datas.push(lessonTaskId + "," + (electResultId ? electResultId : ""));
+                    lessonTaskIds.push(lessonTaskId);
+                    var totalCredit = _lessonTaskMap.get(lessonTaskId).totalCredit;
+                    //从课程组中拆分出各个课程类型的学分
+                    if (tmp_courseTypeSelected.containsKey(courseTypeId)) {
+                        tmp_courseTypeSelected.put(courseTypeId, tmp_courseTypeSelected.get(courseTypeId) + totalCredit);
+                    } else {
+                        tmp_courseTypeSelected.put(courseTypeId, totalCredit);
+                    }
+                }
+            }
+
+            var tmp_courseTypeSelected_keys = tmp_courseTypeSelected.keys();
+            for (var i = 0; i < tmp_courseTypeSelected_keys.length; i++) {
+                var courseTypeId = tmp_courseTypeSelected_keys[i];
+                var selectedCredit = tmp_courseTypeSelected.get(courseTypeId);
+                var electedCredit = _electedCredit.get(courseTypeId);
+                var studiedCredit = _studiedCredit.get(courseTypeId);
+                var currentCourseTypeCredit = (electedCredit == null ? 0 : electedCredit) + (studiedCredit == null ? 0 : studiedCredit);
+                if (_courseTypeCreditMap.containsKey(courseTypeId)) {
+                    var courseTypeMinCredit = _courseTypeCreditMap.get(courseTypeId).minCredit;
+                    if (((currentCourseTypeCredit ? currentCourseTypeCredit : 0) - selectedCredit ) <= courseTypeMinCredit) {
+                        if (!confirm(Help.get_i18n('After delete,Your choice of courses does not reach the minimum credit of this type of course ,Whether to continue?'))) {
+                            return;
+                        }
+                    }
+                }
+            }
+        } else {
+            var lessonTaskId = $btn.closest('div.lesson-task').attr('lessontaskid');
+            var electResultId = $btn.closest('div.lesson-task').attr('electresultid');
+            var courseTypeId = $btn.closest('div.lesson-task').attr('coursetypeid');
+            datas.push(lessonTaskId + "," + (electResultId ? electResultId : ""));
+            lessonTaskIds.push(lessonTaskId);
+            var selectedCredit = _lessonTaskMap.get(lessonTaskId).totalCredit;
+            var electedCredit = _electedCredit.get(courseTypeId);
+            var studiedCredit = _studiedCredit.get(courseTypeId);
+            var currentCourseTypeCredit = (electedCredit == null ? 0 : electedCredit) + (studiedCredit == null ? 0 : studiedCredit);
+            if (_courseTypeCreditMap.containsKey(courseTypeId)) {
+                var courseTypeMinCredit = _courseTypeCreditMap.get(courseTypeId).minCredit;
+                if (((currentCourseTypeCredit ? currentCourseTypeCredit : 0) - selectedCredit ) <= courseTypeMinCredit) {
+                    if (!confirm(Help.get_i18n('After delete,Your choice of courses does not reach the minimum credit of this type of course ,Whether to continue?'))) {
+                        return;
+                    }
+                }
+            }
+        }
+        // 退掉主课的同时,退掉实验课
+        for(var l=0;l<lessonTaskIds.length;l++){
+            var lessonTask = _lessonTaskMap.get(lessonTaskIds[l]);
+            if(_experimentCourse.get(lessonTask.curriculumId)!=null){
+                var experimentCourses = _experimentCourse.get(lessonTask.curriculumId);
+                if(experimentCourses != null){
+                    for(var e=0;e<experimentCourses.length;e++){
+                        var experimentCourse = experimentCourses[e];
+                        if(_electTurnResult.containsKey(experimentCourse.lessonTaskId) || _studiedLessonTask.containsKey(experimentCourse.lessonTaskId)){
+                            var electTurnResult = _electTurnResult.get(experimentCourse.lessonTaskId);
+                            datas.push(experimentCourse.lessonTaskId + "," + ( electTurnResult!= null? electTurnResult.electResultId : ""));
+                        }
+                    }
+                }
+            }
+        }
+        $btn.button('loading');
+        Request.ajax({
+            type:'POST',
+            async:true,
+            url: 'tpm/deElect_ElectTurn.action',
+            data: {jsonString: JSON.stringify({
+                electTurnId:_electTurnId,
+                lessonTasks:JSON.stringify(datas)
+            })},
+            success: function (result) {
+                $btn.button('reset');
+                if (result.success == false) {
+                    alert(result.errDesc+'\n\n'+Help.get_i18n('Try again'));
+                    
+                } else {
+                    refresh();
+                    $.tip.success(Help.get_i18n("The record has been saved"), 'bottom-right');
+                }
+                
+            },
+            error:function(){
+                $btn.button('reset');
+                alert(Help.get_i18n('Try again'));
+            }
+        });
+    };
+    /**
+     * 提交退课
+     * @param $btn
+     */
+    var undo_elect = function ($btn) {
+        var datas = [];
+        var lessonTaskIds = [];
+        var courseGroupId = $btn.closest('div.lesson-task').attr('coursegroupid');
+        if (courseGroupId && courseGroupId.length > 0) {
+            var $divs = $('div.lesson-task[coursegroupid="' + courseGroupId + '"]');
+            if (!confirm(Help.get_i18n('The same group of courses will be dropped,Whether to continue?'))) {
+                return;
+            }
+
+            var tmp_courseTypeSelected = new Map();
+            var tmp_termDroped = new Map();
+            for (var i = 0; i < $divs.length; i++) {
+                var item = $divs[i];
+                var lessonTaskId = $(item).attr('lessontaskid');
+                var lessonTask = _lessonTaskMap.get(lessonTaskId);
+                var electResultId = $(item).attr('electresultid');
+                var courseTypeId = lessonTask.courseType;
+                var totalCredit = lessonTask.totalCredit;
+                var termId = lessonTask.termId;
+                datas.push(lessonTaskId + "," + (electResultId ? electResultId : ""));
+                lessonTaskIds.push(lessonTaskId);
+
+                //从课程组中拆分出各个课程类型的学分
+                if (tmp_courseTypeSelected.containsKey(courseTypeId)) {
+                    tmp_courseTypeSelected.put(courseTypeId, tmp_courseTypeSelected.get(courseTypeId) + totalCredit);
+                } else {
+                    tmp_courseTypeSelected.put(courseTypeId, totalCredit);
+                }
+
+                //从课程组中拆分出各个学期的学分
+                if (tmp_termDroped.containsKey(termId)) {
+                    tmp_termDroped.put(termId, tmp_termDroped.get(termId) + totalCredit);
+                } else {
+                    tmp_termDroped.put(termId, totalCredit);
+                }
+            }
+
+            var tmp_termDropedCredits = tmp_termDroped.containsKey(termId)?tmp_termDroped.get(termId):0;
+            if(!validateTermCredit(termId,tmp_termDropedCredits,'min')){
+                return false;
+            }
+
+            var tmp_courseTypeSelected_keys = tmp_courseTypeSelected.keys();
+            for (var i = 0; i < tmp_courseTypeSelected_keys.length; i++) {
+                var courseTypeId = tmp_courseTypeSelected_keys[i];
+                var selectedCredit = tmp_courseTypeSelected.get(courseTypeId);
+
+                var electedCredit = _electedCredit.get(courseTypeId);
+                var studiedCredit = _studiedCredit.get(courseTypeId);
+                var currentCourseTypeCredit = (electedCredit == null ? 0 : electedCredit) + (studiedCredit == null ? 0 : studiedCredit);
+                if (_courseTypeCreditMap.containsKey(courseTypeId)) {
+                    var courseTypeMinCredit = _courseTypeCreditMap.get(courseTypeId).minCredit;
+                    if (((currentCourseTypeCredit ? currentCourseTypeCredit : 0) - selectedCredit ) <= courseTypeMinCredit) {
+                        if (!confirm(Help.get_i18n('After delete,Your choice of courses does not reach the minimum credit of this type of course ,Whether to continue?'))) {
+                            return false;
+                        }
+                    }
+                }
+            }
+
+        } else {
+            var lessonTaskId = $btn.closest('div.lesson-task').attr('lessontaskid');
+            var lessonTask = _lessonTaskMap.get(lessonTaskId);
+            var electResultId = $btn.closest('div.lesson-task').attr('electresultid');
+            var courseTypeId = $btn.closest('div.lesson-task').attr('coursetypeid');
+            datas.push(lessonTaskId + "," + (electResultId ? electResultId : ""));
+            lessonTaskIds.push(lessonTaskId);
+            var totalCredit = lessonTask.totalCredit;
+            var termId = lessonTask.termId;
+            var tmp_termDropedCredits = _lessonTaskMap.get(lessonTaskId).totalCredit;
+            var selectedCredit = _lessonTaskMap.get(lessonTaskId).totalCredit;
+            var electedCredit = _electedCredit.get(courseTypeId);
+            var studiedCredit = _studiedCredit.get(courseTypeId);
+            var currentCourseTypeCredit = (electedCredit == null ? 0 : electedCredit) + (studiedCredit == null ? 0 : studiedCredit);
+            if (_courseTypeCreditMap.containsKey(courseTypeId)) {
+                var courseTypeMinCredit = _courseTypeCreditMap.get(courseTypeId).minCredit;
+                if (((currentCourseTypeCredit ? currentCourseTypeCredit : 0) - selectedCredit ) < courseTypeMinCredit) {
+                    if (!confirm(Help.get_i18n('After delete,Your choice of courses does not reach the minimum credit of this type of course ,Whether to continue?'))) {
+                        return;
+                    }
+                }
+            }
+            if(!validateTermCredit(termId,tmp_termDropedCredits,'min')){
+                return false;
+            }
+        }
+        for(var l=0;l<lessonTaskIds.length;l++){
+            var lessonTask = _lessonTaskMap.get(lessonTaskIds[l]);
+            if(_experimentCourse.get(lessonTask.curriculumId)!=null){
+                var experimentCourses = _experimentCourse.get(lessonTask.curriculumId);
+                for(var e=0;e<experimentCourses.length;e++){
+                    var experimentCourse = experimentCourses[e];
+                    if(_studiedLessonTask.containsKey(experimentCourse.lessonTaskId)){
+                        var  electTurnResult = _electTurnResult.get(experimentCourse.lessonTaskId );
+                        datas.push(experimentCourse.lessonTaskId + "," + ( electTurnResult!= null? electTurnResult.electResultId : ""));
+                    }
+                }
+            }
+        }
+
+        // 提交前弹出确认框
+        $.confirm_simple({
+            content: Help.get_i18n('Whether to confirm drop the course?'),
+            confirmButton: Help.get_i18n('Yes'),
+            cancelButton: Help.get_i18n('Cancel')
+        }, function () {
+            $btn.button('loading');
+            Request.ajax({
+                type:'POST',
+                async:true,
+                url: 'tpm/unDoElect_ElectTurn.action',
+                data: {jsonString: JSON.stringify({
+                    electTurnId:_electTurnId,
+                    lessonTasks:JSON.stringify(datas)
+                })},
+                success: function (result) {
+                    $btn.button('reset');
+                    if (result.success == false) {
+                        alert(result.errDesc+'\n\n'+Help.get_i18n('Try again'));
+                    } else {
+                        $.tip.success(Help.get_i18n("The record has been saved"), 'bottom-right');
+                        refresh();
+                    }
+                },
+                error:function(){
+                    $btn.button('reset');
+                    alert(Help.get_i18n('Try again'));
+                }
+            });
+        });
+    };
+
+    /**
+     * 提交空位通知
+     * @param $btn
+     */
+    var notify_vacancy = function($btn){
+        var lessonTaskId = $btn.parents('div.lesson-task').attr('lessontaskid');
+        if($btn.prop('notifyvacancyid')){
+            $btn.button('loading');
+            Request.ajax({
+                type:'POST',
+                async:true,
+                url: 'tpm/remove_ElectClassNotifyVacancy.action',
+                data: {jsonString: JSON.stringify([$btn.prop('notifyvacancyid')])},
+                success: function (result) {
+                    $btn.button('reset');
+                    refresh();
+                },
+                error:function () {
+                    $btn.button('reset');
+                    alert(Help.get_i18n('Try again'));
+                }
+            });
+        }else{
+            $btn.button('loading');
+            var data = {
+                electTurnId:_electTurnId,
+                lessonTaskId:lessonTaskId,
+                submitTime:DateUtil.getNow("yyyy-MM-dd hh:mm:ss"),
+                studentId:__Session.userId
+            };
+            Request.ajax({
+                type:'POST',
+                async:true,
+                url: 'tpm/add_ElectClassNotifyVacancy.action',
+                data: {jsonString: JSON.stringify(data)},
+                success: function (result) {
+                    if(result.hasOwnProperty("success") && result['success'] == false){
+                        $btn.button('reset');
+                        alert(result.errDesc);
+                        refresh();
+                    }else{
+                        $btn.button('reset');
+                        refresh();
+                    }
+                },
+                error:function () {
+                    $btn.button('reset');
+                    alert(Help.get_i18n('Try again'));
+                }
+            });
+        }
+    };
+    /**
+     * 创造购物车课程类型分类面板
+     * @param courseType
+     * @returns {*|jQuery|HTMLElement}
+     */
+    var createCartCourseTypePanel = function (courseType) {
+        _$this.find('.cart-page > .cart-page-lessontask').find('div.empty-tip').remove();
+        var courseTypeId = courseType.courseTypeId;
+        var $panel = $('<div coursetypeid="' + courseType.courseTypeId + '" class="course-type-panel">' +
+            '       <div class="course-type-header">' +
+            '           <div class="row">' +
+            '               <div class="col-md-7 col-sm-7 col-xs-5">' +
+            '                  <p>' +
+            '                   <span class="course-type-name"><label>' + (window.lang == "zh_CN"?courseType.courseTypeName:courseType.courseTypeNameEn) + '</label></span>' +
+            '                  </p>' +
+            '               </div>' +
+            '               <div class="col-md-3 col-sm-3 col-xs-6">' +
+            '                   <span class="electedCreditVal">0</span>' +
+            '               </div>' +
+            '           </div>' +
+            '    </div>' +
+            '    <div class="course-type-lesson-task">' +
+            '    </div>' +
+            '</div>');
+        $panel.find('.maxCredit-minCredit').remove();
+        return $panel;
+    };
+
+    /**
+     * 创造主页面课程类型分类面板
+     * @param courseType
+     * @returns {*|jQuery|HTMLElement}
+     */
+    var createCourseTypePanel = function (courseType) {
+        var courseTypeId = courseType.courseTypeId;
+        var maxCredit = _courseTypeCreditMap.get(courseTypeId) == null ? 0 : _courseTypeCreditMap.get(courseTypeId).maxCredit;
+        var minCredit = _courseTypeCreditMap.get(courseTypeId) == null ? 0 : _courseTypeCreditMap.get(courseTypeId).minCredit;
+        var $panel = $('<div coursetypeid="' + courseType.courseTypeId + '" class="course-type-panel">' +
+            '<div class="course-type-header">' +
+            '     <div class="row">' +
+            '        <div class="col-md-9 col-sm-9 col-xs-9">' +
+            '           <p>' +
+            '               <span class="course-type-name"><label>' + (window.lang == "zh_CN"?courseType.courseTypeName:courseType.courseTypeNameEn) + '</label></span>' +
+            '               <span class="maxCredit">' + Help.get_i18n('ElectClass_MaxCredit') + ':' + maxCredit + '</span>' +
+            '               <span class="minCredit">' + Help.get_i18n('ElectClass_MinCredit') + ':' + minCredit + '</span>' +
+            '               <span class="electedCredit">' + Help.get_i18n('Elected Credit') + ':<span class="electedCreditVal">0</span></span>' +
+            '               <span class="studiedCredit">' + Help.get_i18n('Studied Credit') + ':<span class="studiedCreditVal">0</span></span>' +
+            '           </p>' +
+            '       </div>' +
+            '    </div>' +
+            '</div>' +
+            '<div class="course-type-lesson-task">' +
+            '</div>' +
+            '</div>');
+
+        if (_singleCourseTypeCredit.get(courseTypeId).length == 0) {
+            $panel.find('.maxCredit').remove();
+            $panel.find('.minCredit').remove();
+        }else {
+            var exitSingleCourseType =  false;
+            var combi_credits = _singleCourseTypeCredit.get(courseTypeId);
+
+            var $combi_credits = $('<div class="col-md-12 col-sm-12 col-xs-12"></div>');
+            for(var i=0;i<combi_credits.length;i++){
+                var courseTypeCreditModel = _courseTypeCreditMap.get(combi_credits[i]);
+                var courseTypes = courseTypeCreditModel.courseTypeId.split(',');
+                if(courseTypes.length == 1){
+                    exitSingleCourseType = true;
+                    var courseTypeMaxCredit = courseTypeCreditModel.maxCredit;
+                    var courseTypeMinCredit = courseTypeCreditModel.minCredit;
+                    $panel.find('.maxCredit').html(Help.get_i18n('ElectClass_MaxCredit') + ':' + courseTypeMaxCredit);
+                    $panel.find('.minCredit').html(Help.get_i18n('ElectClass_MinCredit') + ':' + courseTypeMinCredit);
+                }else{
+                    var courseTypeMaxCredit = courseTypeCreditModel.maxCredit;
+                    var courseTypeMinCredit = courseTypeCreditModel.minCredit;
+
+                    var $combiSetting = $('<p class="combi-coursetype-credit" coursetypecreditId = "'+courseTypeCreditModel.courseTypeCreditId+'" >' +
+                        '   <span class="course-type-name"><label>' + (window.lang == "zh_CN"?courseTypeCreditModel.courseTypeName:courseTypeCreditModel.courseTypeNameEn) + '</label></span>' +
+                        '   <span class="combi-maxCredit">' + Help.get_i18n('ElectClass_MaxCredit') + ':' + courseTypeMaxCredit + '</span>' +
+                        '   <span class="combi-minCredit">' + Help.get_i18n('ElectClass_MinCredit') + ':' + courseTypeMinCredit + '</span>' +
+                        '   <span class="combi-electedCredit">' + Help.get_i18n('Elected Credit') + ':<span class="combi-electedCreditVal" id="main'+courseTypeId+courseTypeCreditModel.courseTypeCreditId+'electedCreditVal">0</span></span>' +
+                        '   <span class="combi-studiedCredit">' + Help.get_i18n('Studied Credit') + ':<span class="combi-studiedCreditVal">0</span></span>' +
+                        '  </p>' +
+                        '</div>');
+                    $combi_credits.append($combiSetting);
+                }
+            }
+            if(!exitSingleCourseType){
+                $panel.find('.maxCredit').remove();
+                $panel.find('.minCredit').remove();
+                if(combi_credits.length > 0){
+                    $panel.find('.course-type-header > div.row').append($combi_credits);
+                }
+            }else if((exitSingleCourseType && combi_credits.length > 1) || (!exitSingleCourseType && combi_credits.length > 0)){
+                $panel.find('.course-type-header > div.row').append($combi_credits);
+            }
+        }
+        return $panel;
+    };
+    /**
+     * 创建课程组row
+     * @param courseGroup
+     * @returns {*|jQuery|HTMLElement}
+     */
+    var createGroupRow = function (courseGroup) {
+        var $row = $('<div coursegroupid="' + courseGroup.courseGroupId + '" class="row course-group">' +
+            '           <div class="col-md-12 col-sm-12 col-xs-12">' +
+            '               <div class="lesson-task-group">' +
+            '               </div>' +
+            '           </div>' +
+            '</div>');
+
+        $row.find('.lesson-task-group').append('<span style="margin-right:20px;">' + courseGroup.courseGroupName  +' ' + Help.get_i18n('Course Group') + '</span>');
+        // $row.find('.lesson-task-group').append('<span>' + Help.get_i18n('Max Credit') + courseGroup.maxCredit + '  ' + Help.get_i18n('Min Credit') + courseGroup.minCredit + '</span>');
+        return $row;
+    };
+    /**
+     * 创建主页面课程row
+     * @param data
+     * @returns {*|jQuery|HTMLElement}
+     */
+    var createRow = function (data) {
+        var remainSlots = data.maxNum > data.studentNum ? data.maxNum - data.studentNum : 0;
+        if(data.professionLimit == 1){
+            var maxNum = data.professionLimitMaxNum;
+            var minNum = data.professionLimitMinNum;
+            var studentNum = data.studiedProfessionLimitStudentNum;
+            remainSlots = data.maxNum > data.studentNum && maxNum > minNum ? maxNum - minNum : 0;
+        }
+
+        var $row = $('<div lessontaskid="' + data.lessonTaskId + '" class="row lesson-task">' +
+            '           <div class="col-md-7 col-sm-7 col-xs-7">' +
+            (getKeyElement('courseCode')?'<div class="lesson-task-code-circle pull-left">' + data.courseCode.substr(0, 2) + '<span class="lesson-task-code-number">' + data.courseCode.substr(2, data.courseCode.length - 2) + '</span></div>': '<div class="lesson-task-code-circle pull-left" style="line-height: 50px;"><p>'+data.courseShortName+'</p></div>')+
+            '               <div class="lesson-task-info pull-left">' +
+            '                       <a href="javascript:void(0);" class="lesson-task-name">' + (window.lang == "zh_CN"?data.courseName:data.courseNameEn)+ '</a>' +
+            ( getKeyElement('courseType')? '<span class="label" style="background-color:#4d79ff;">' + (window.lang == "zh_CN"?data.courseTypeName:data.courseTypeNameEn) + '</span>':'' )+
+            ( getKeyElement('language')?'<span class="label label-primary">'+Help.get_i18n(data.language)+'</span>':'') +
+            (_lessonCalendar.containsKey(data.lessonTaskId)?'<span class="label label-primary lesson-calendar"><i class="fa fa-calendar" aria-hidden="true"></i></span>':'')+
+            (_prerequisiteCourse.containsKey(data.courseId)&& !_prerequisiteExempt.containsKey(data.courseId) && !_prerequisiteProfession   ?'<span class="prerequisite-rule">'+Help.get_i18n('Prerequisite Course')+'</span>':'' )+
+            '                   <p>' + data.termName + ' | ' + data.lessonClassName + (getKeyElement('showLessonClassShortName')?' | ' + data.lessonClassShortName:'') + ' | ' + '<span class="firstSpeaker">' + (data.lessonTaskTeam?data.lessonTaskTeam:"") + '</span> ' + '  </p>' +
+            '                   <p> <span title="' + Help.get_i18n('Credit') + '"><i class="fa fa-flag"></i></span> ' + data.totalCredit + ( getKeyElement('showHour')?' &nbsp;&nbsp; <span><i class="fa fa-clock-o"></i></span> ' + data.totalHour + ' </p>':'') +
+            ( getKeyElement('showRequirement')?('<p class="lesson-task-requirement"></p>'):'') +
+            '              </div>' +
+            '           </div>' +
+            '           <div class="col-md-2 col-sm-2 col-xs-2">' +
+            '               <div class="lesson-task-slots">' +
+            '               </div>' +
+            '               <div class="lesson-task-slots-tip">' +
+            '               </div>' +
+            '           </div>' +
+            '           <div class="col-md-1 col-sm-1 col-xs-1">' +
+            '               <div class="lesson-task-group-section">' +
+            '               </div>' +
+            '               <div class="lesson-task-experiment">' +
+            '               </div>' +
+            '           </div>' +
+            '           <div class="col-md-2 col-sm-2 col-xs-12">' +
+            '               <div class="lesson-task-operation">' +
+            '                   <button type="button" class="btn btn-xs" data-loading-text="' + Help.get_i18n('Saving...') + '"></button>' +
+            '               </div>' +
+            '               <span class="lesson-task-status pull-right"></span>' +
+            '               <span class="lesson-calendar-conflict pull-right"></span>' +
+            '           </div>' +
+            '</div>');
+        $row.data(data);
+        $row.attr({
+            'curriculumid':data.curriculumId,
+            'coursegroupid': data.courseGroupId,
+            'coursetypeid': data.courseType,
+            'courseId': data.courseId,
+            'lessonType': data.lessonType
+        });
+        $row.find('.lesson-task-requirement').append(data.requirement);
+        if (_isReadonly) {
+            $row.find('.lesson-task-operation > button').remove();
+            if(DateUtil.diff_second(DateUtil.getNow("yyyy-MM-dd hh:mm"),data.beginTime) > 0){
+                $row.find('.lesson-task-status').html('<span class="label label-default">'+Help.get_i18n('Not begin')+'</span>' +
+                    '<span class="lesson-task-status-alarm"></span>');
+                rendererAlarm($row.find('span.lesson-task-status-alarm'),data.beginTime);
+                $row.find('.lesson-task-status').al_popover({
+                    placement: 'bottom',
+                    container: 'body',
+                    trigger: 'hover',
+                    html: true,
+                    content:function(){
+                        var $ul = $('<ul class="list-unstyled" style="margin-bottom: 0px;"></ul>');
+                        $ul.append("<li>"+Help.get_i18n('Begin Time')+":"+"<span class='pull-right'>"+DateUtil.formatDay(data.beginTime,'yyyy-MM-dd hh:mm')+"</span></li>");
+                        $ul.append("<li>"+Help.get_i18n('End Time')+":"+"<span class='pull-right'>"+DateUtil.formatDay(data.endTime,'yyyy-MM-dd hh:mm')+"</span></li>");
+                        var $div = $('<div style="width: 200px;"></div>');
+                        $div.html($ul);
+                        return $div;
+                    }
+                });
+            }else if(DateUtil.diff_second(DateUtil.getNow("yyyy-MM-dd hh:mm"),data.beginTime) <= 0
+                && DateUtil.diff_second(DateUtil.getNow("yyyy-MM-dd hh:mm"),data.endTime) > 0 ){
+                $row.find('.lesson-task-status').html('<a href="javascript:void(0);" class="join-elect-class">'+Help.get_i18n('Join now')+'</a>');
+                $row.find('a.join-elect-class').on('click',function () {
+                    __DestroyModule(_params['menuId']);
+                    __ActiveModule('ElectClassOnline', _$this.find('.elect-turn-name').text(), "electClass/dropMode/dropMode?electTurnId=" + _params['electTurnId'], true);
+                });
+            }else{
+                $row.find('.lesson-task-status').html('<span class="label label-default">'+Help.get_i18n('Ended')+'</span>');
+            }
+        }else if(_electTurnResult.containsKey(data.lessonTaskId)) {
+            $row.addClass('lesson-task-selected');
+            var electResult = _electTurnResult.get(data.lessonTaskId);
+            $row.attr({
+                'electresultid': electResult ? electResult.electResultId : ''
+            });
+        }else if (_studiedLessonTask.containsKey(data.lessonTaskId)) {
+            $row.addClass('lesson-task-selected');
+        }else if(remainSlots == 0){
+            // $row.addClass('lesson-task-vacancy');
+        }
+        if (data.courseGroupId &&  data.courseGroupId != "") {
+            var sameGroup = _$this.find('.main-page').find('[coursegroupid="' + data.courseGroupId + '"]');
+            var courseGroup = _courseGroupMap.get(data.courseGroupId);
+            if (sameGroup.length == 0) {
+                electText($row.find('.lesson-task-operation > button'), data);
+            } else {
+                $row.find('.lesson-task-operation > button').remove();
+            }
+            if (_electTurnResult.containsKey(data.lessonTaskId) || _studiedLessonTask.containsKey(data.lessonTaskId)) {
+                $row.find('.lesson-task-group-section').append('<input type="checkbox" checked disabled>');
+            } else {
+                if(remainSlots == 0 ){
+                    $row.find('.lesson-task-group-section').append('<span class="label label-default">'+Help.get_i18n('No slots')+'</span>')
+                }else{
+                    $row.find('.lesson-task-group-section').append('<input type="checkbox">');
+                }
+            }
+        } else {
+            electText($row.find('.lesson-task-operation > button'), data,remainSlots);
+        }
+
+        var $process = $('<div class="progress"> '
+            + '<div class="progress-bar progress-bar-success">'
+            + '</div>'
+            + '</div>');
+        var maxNum = parseFloat(data.maxNum);
+        var minNum = parseFloat(data.minNum);
+        var studentNum = parseFloat(data.studiedStudentNum);
+
+        if(data.professionLimit == 1){
+            var $lessonTaskSeatTip = $('<span>'+Help.get_i18n('Lesson Task Elected')+': </span><span>'+studentNum+'</span> / <span>'+Help.get_i18n('Lesson Task Max')+': </span><span>'+maxNum+'</span>');
+            $row.find('.lesson-task-slots-tip').html($lessonTaskSeatTip);
+            $lessonTaskSeatTip.al_popover({
+                placement: 'bottom',
+                container: 'body',
+                trigger: 'hover',
+                html: true,
+                content:function(){
+                    return '<span>'+Help.get_i18n('Lesson Task Slots Tips')+'</span>';
+                }
+            });
+            maxNum = data.professionLimitMaxNum;
+            minNum = data.professionLimitMinNum;
+            studentNum = data.studiedProfessionLimitStudentNum;
+        }
+
+        if(studentNum < maxNum){
+            var percent = (maxNum == 0 ? '0.00%' : (Math.round((studentNum / maxNum) * 10000) / 100).toFixed(2) + '%');
+            $process.find('.progress-bar').append((studentNum > 0?studentNum:0) + '/'+ maxNum).css('width', percent).css('color','#404040');
+            $row.find('.lesson-task-slots').html($process);
+            $row.find('.lesson-task-slots').al_popover({
+                placement: 'bottom',
+                container: 'body',
+                trigger: 'hover',
+                html: true,
+                content:function(){
+                    var $ul = $('<ul class="list-unstyled" style="margin-bottom: 0px;"></ul>');
+                    $ul.append("<li>"+Help.get_i18n('Studied')+":"+"<span class='pull-right'>"+studentNum+"</span></li>");
+                    $ul.append("<li>"+Help.get_i18n('Min Num')+":"+"<span class='pull-right'>"+(minNum==""?Help.get_i18n('Unlimited'):minNum)+"</span></li>");
+                    $ul.append("<li>"+Help.get_i18n('Max Num')+":"+"<span class='pull-right'>"+(maxNum==""?Help.get_i18n('Unlimited'):maxNum)+"</span></li>");
+                    var $div = $('<div style="width: 150px;"></div>');
+                    $div.html($ul);
+                    return $div;
+                }
+            });
+        }else{
+            $process.find('.progress-bar').append(Help.get_i18n('ElectClass_Full')).css({
+                width:'100%',
+                color:'#fff'
+            }).removeClass('progress-bar-success').addClass('progress-bar-danger');
+            $row.find('.lesson-task-slots').html($process);
+        }
+        if(_lessonCalendar.containsKey(data.lessonTaskId)){
+            var calendar = _lessonCalendar.get(data.lessonTaskId);
+            $row.find('.lesson-calendar').al_popover({
+                placement: 'bottom',
+                container: 'body',
+                trigger: 'hover',
+                html: true,
+                content:function(){
+                    var $ul = $('<ul class="list-unstyled" style="margin-bottom: 0px;"></ul>');
+                    $ul.append("<li>"+Help.get_i18n('Teacher')+":"+"<span class='pull-right'>"+calendar.facultyName+"</span></li>");
+                    $ul.append("<li>"+Help.get_i18n('Weeks')+":"+"<span class='pull-right'>"+calendar.week+"</span></li>");
+                    $ul.append("<li>"+Help.get_i18n('Day of Week')+":"+"<span class='pull-right'>"+data.dayOfWeek+"</span></li>");
+                    $ul.append("<li>"+Help.get_i18n('Sections')+":"+"<span class='pull-right'>"+data.sections+"</span></li>");
+                    $ul.append("<li>"+Help.get_i18n('ClassRoom')+":"+"<span class='pull-right'>"+data.classRoomName+"</span></li>");
+                    var $div = $('<div style="width: 150px;"></div>');
+                    $div.html($ul);
+                    return $div;
+                }
+            });
+        }
+        if(_prerequisiteCourse.containsKey(data.courseId)&& (!_prerequisiteExempt.containsKey(data.courseId) && !_prerequisiteProfession)){
+            $row.find('span.prerequisite-rule').al_popover({
+                placement: 'bottom',
+                container: 'body',
+                trigger: 'hover',
+                html: true,
+                content:function(){
+                    var $div = $('<div style="width: 250px;"></div>');
+                    $div.html(_prerequisiteCourse.get(data.courseId)['prerequisiteRuleDesc']);
+                    return $div;
+                }
+            });
+        }else{
+            $row.find('span.prerequisite-rule').remove();
+        }
+        $row.find('.lesson-task-operation > button').on('click', function (event) {
+            if (event)
+                window.event;
+            var $btn = $(this);
+            functions[$btn.prop('action')].call(this, $btn);
+        });
+        // $row.find('.firstSpeaker').on('click', function () {
+        //     var data = $(this).closest('div.lesson-task').data();
+        //     __ActiveModule('ELECTCLASSFIRSTSPEAKER', data.firstSpeakerName, 'faculty/profile/profile?facultyId=' + data.firstSpeakerId, true);
+        // });
+        $row.find('.lesson-task-name').on('click', function () {
+            var data = $(this).closest('div.lesson-task').data();
+            __ActiveModule('ELECTCLASSLESSONTASKINTRODUCTION',  (window.lang == "zh_CN"?data.courseName:data.courseNameEn), 'lessonTask/introduction/introduction?lessonTaskId=' + data.lessonTaskId, true);
+        });
+        return $row;
+    };
+
+    /**
+     * 创建购物车课程row
+     * @param data
+     * @returns {*|jQuery|HTMLElement}
+     */
+    var createCartRow = function (data) {
+        var remainSlots = data.maxNum > data.studentNum ? data.maxNum - data.studentNum : 0;
+        if(data.professionLimit == 1){
+            var maxNum = data.professionLimitMaxNum;
+            var minNum = data.professionLimitMinNum;
+            var studentNum = data.studiedProfessionLimitStudentNum;
+            remainSlots = data.maxNum > data.studentNum && maxNum > minNum ? maxNum - minNum : 0;
+        }
+        var $row = $('<div lessontaskid="' + data.lessonTaskId + '" class="row lesson-task">' +
+            '           <div>' +
+            '               <div class="lesson-task-info">' +
+            '                   <p>' + (window.lang == "zh_CN" ? data.courseName : data.courseNameEn) + ' | ' + data.lessonClassShortName + '</p>' +
+            '              </div>' +
+            '           </div>' +
+            '           <div class="col-md-1 col-sm-1 col-xs-1">' +
+            '               <div class="lesson-task-credit">' + data.totalCredit + '</div>' +
+            '           </div>' +
+            '           <div class="col-md-2 col-sm-2 col-xs-5">' +
+            '               <div class="lesson-task-operation">' +
+            '                    <a href="javascript:;"><i class="fa fa-times"></i></a>' +
+            '               </div>' +
+            '           </div>' +
+            '</div>');
+
+        if("1" == data.lessonType){
+            $row.children('div:first').addClass('col-md-6 col-sm-6 col-xs-4 col-md-offset-1 col-sm-offset-1 col-xs-offset-1');
+            $row.find('.lesson-task-info > p').append(" ("+ Help.get_i18n("Experiment Course") +")");
+            $row.find('div.lesson-task-operation').remove();
+        }else{
+            $row.children('div:first').addClass('col-md-7 col-sm-7 col-xs-5');
+            electCartText($row.find('.lesson-task-operation > a'), data,remainSlots);
+        }
+        var electResult = _electTurnResult.get(data.lessonTaskId);
+        $row.attr({
+            'curriculumid':data.curriculumId,
+            'coursegroupid': data.courseGroupId,
+            'coursetypeid': data.courseType,
+            'electresultid': electResult ? electResult.electResultId : '',
+            'courseId': data.courseId,
+            'lessonType': data.lessonType
+        });
+        $row.data(data);
+        $row.find('.lesson-task-operation > a').on('click', function (event) {
+            $(this).al_popover('destroy');
+            if (event)
+                window.event;
+            var $btn = $(this);
+            functions[$btn.prop('action')].call(this, $btn);
+        });
+        return $row;
+    };
+
+    var loadData = function () {
+        $.ajax({
+            url: 'tpm/findLessonCalendarConflict_ElectTurn.action',
+            data: {
+                jsonString: JSON.stringify({
+                    electTurnId: _electTurnId
+                })
+            },
+            dataType: 'json',
+            success: function (result) {
+                _lcc = true;
+                initLessonCalendarConflict(result.data);
+                var lessonTasks = _lessonTaskMap.values();
+                for(var t=0;t<lessonTasks.length;t++){
+                    var lessonTask = lessonTasks[t];
+                    if(_lessonCalendarConflict.containsKey(lessonTask.lessonTaskId) && _lessonCalendarConflict.get(lessonTask.lessonTaskId).length > 0){
+                        _$this.find('[lessontaskid="'+lessonTask.lessonTaskId+'"]').find('span.lesson-calendar-conflict').html('<i class="fa fa-compress" aria-hidden="true"></i>');
+                        _$this.find('[lessontaskid="'+lessonTask.lessonTaskId+'"]').find('span.lesson-calendar-conflict').al_popover({
+                            placement: 'bottom',
+                            container: 'body',
+                            trigger: 'hover',
+                            html: true,
+                            content:function(){
+                                var $ul = $('<ul class="list-unstyled" style="margin-bottom: 0px;"></ul>');
+                                $ul.append("<li>"+Help.get_i18n('The course is in conflict with the following courses')+"</li>");
+                                var lessonTaskId = $(this).parents('.lesson-task').attr('lessontaskid');
+                                var conflictLessonTasks = _lessonCalendarConflict.get(lessonTaskId);
+                                for(var l=0;l<conflictLessonTasks.length;l++){
+                                    var item = conflictLessonTasks[l];
+                                    $ul.append("<li>"+item['conflictLessonTaskName']+"<span class='pull-right'>"+item['cfTimes']+Help.get_i18n('times')+"</span></li>");
+                                }
+                                var $div = $('<div style="width: 250px;"></div>');
+                                $div.html($ul);
+                                return $div;
+                            }
+                        });
+                    }
+                }
+                $.tip.success(Help.get_i18n("Course arrangement data has been loaded. You can start course selection!"), 'bottom-center');
+            }
+        });
+    };
+
+    /**
+     * 加载参加选课的课程
+     */
+    var loadLessonTask = function () {
+        _$this.find('.main-page').empty();
+        _$this.find('.cart-page > .cart-page-lessontask ').empty();
+        _$this.find('.main-page').loading('2x');
+        _$this.find('.cart-page > .cart-page-lessontask ').loading('2x');
+        $.ajax({
+            url: 'tpm/findLessonTasks_ElectTurn.action',
+            data: {
+                jsonString: JSON.stringify({
+                    isToTheTime:_isReadonly == false,
+                    electTurnId: _electTurnId,
+                    loadCourseGroup: true,
+                    loadElectTurn: true,
+                    loadCourseType: true,
+                    loadCourseTypeCredit: true,
+                    loadElectTurnResult: true,
+                    loadStudentLessonTask: true,
+                    loadPrerequisiteCourse:true,
+                    lessonCalendarWeek:false,
+                    loadLessonCalendarConflict:false,
+                    loadTermCredit:true,
+                    loadLessonTask:true,
+                    loadDropApprove:true,
+                    loadElectApprove:true
+                })
+            },
+            dataType: 'json',
+            error:function (result) {
+                console.log(result);
+            },
+            success: function (result) {
+                _$this.find('.main-page').empty();
+                _$this.find('.cart-page > .cart-page-lessontask ').empty();
+                $('.refresh').removeClass('disabled');
+                if (result.data.electTurn == null) {
+                    _$this.find('.main-page').append("<div class='empty-lesson-task'>"+Help.get_i18n('The current round of course election has been closed, you can not continue electing class!')+"</div>");
+                    return;
+                }
+                initElectTurnSetting(result.data.electTurn);
+                var courseTypes = result.data.courseType;
+                for (var i = 0; i < courseTypes.length; i++) {
+                    var courseType = courseTypes[i];
+                    _courseTypeMap.put(courseType.courseTypeId, courseType);
+                    _singleCourseTypeCredit.put(courseType.courseTypeId, []);
+                }
+                var courseTypeCredits = result.data.courseTypeCredit;
+                for (var i = 0; i < courseTypeCredits.length; i++) {
+                    var courseTypeCredit = courseTypeCredits[i];
+                    _courseTypeCreditMap.put(courseTypeCredit.courseTypeCreditId, courseTypeCredit);
+                    var keys =_singleCourseTypeCredit.keys();
+                    for(var k=0;k<keys.length;k++){
+                        var courseTypeId = keys[k];
+                        if(courseTypeCredit.courseTypeId.indexOf(courseTypeId)>=0){
+                            _singleCourseTypeCredit.get(courseTypeId).push(courseTypeCredit.courseTypeCreditId);
+                        }
+                    }
+                }
+                var courseGroups = result.data.courseGroups;
+                for (var i = 0; i < courseGroups.length; i++) {
+                    var courseGroup = courseGroups[i];
+                    _courseGroupMap.put(courseGroup.courseGroupId, courseGroup);
+                }
+                var lessonTasks = result.data.lessonTasks;
+
+                var prerequisiteCourses = result.data.prerequisiteCourses;
+                for (var i = 0; i < prerequisiteCourses.length; i++) {
+                    var prerequisiteCourse = prerequisiteCourses[i];
+                    _prerequisiteCourse.put(prerequisiteCourse.courseId, prerequisiteCourse);
+                }
+
+                _prerequisiteProfession = result.data.prerequisiteProfession;
+                var prerequisiteExempts = result.data.prerequisiteExempt;
+                for (var i = 0; i < prerequisiteExempts.length; i++) {
+                    var courseId = prerequisiteExempts[i];
+                    _prerequisiteExempt.put(courseId, courseId);
+                }
+
+
+                var studentObtainedCredits = result.data.studentObtainedCredit;
+                for (var i = 0; i < studentObtainedCredits.length; i++) {
+                    var studentObtainedCredit = studentObtainedCredits[i];
+                    _studentObtainedCredit.put(studentObtainedCredit.courseId, studentObtainedCredit.obtainedCredit);
+                }
+
+                var studentScores = result.data.studentScore;
+                for (var i = 0; i < studentScores.length; i++) {
+                    var studentScore = studentScores[i];
+                    _studentScore.put(studentScore.courseId, studentScore);
+                }
+                _conflictRatio = result.data.conflictRatio;
+                _mentorApproveDrop = result.data.mentorApproveDrop;
+                _mentorApproveElect = result.data.mentorApproveElect;
+                initLessonCalendar(result.data.lessonCalendarWeek);
+                initStudiedLessonTask(result.data.studentLessonTask);
+                initStudiedCredit(result.data.studiedCredit);
+                initElectTurnResult(result.data.electTurnResult);
+                initTermCredit(result.data.termCredit);
+                initStudiedTermCredit(result.data.studiedTermCredit);
+                initElectedTermCredit(result.data.electedTermCredit);
+                
+                _$this.find('.main-page').loaded();
+                _$this.find('.cart-page > .cart-page-lessontask ').loaded();
+                if(lessonTasks.length ==0 ){
+                    _$this.find('.main-page').append("<div class='empty-lesson-task'>"+Help.get_i18n('There are no optional courses for the time being.')+"</div>");
+                }
+                lessonTasks.sort(function(o, p){
+                    var a, b;
+                    if (typeof o === "object" && typeof p === "object" && o && p) {
+                        a = o['courseCode'];
+                        b = p['courseCode'];
+                        if (a === b) {
+                            return 0;
+                        }
+                        if (typeof a === typeof b) {
+                            return a < b ? -1 : 1;
+                        }
+                        return typeof a < typeof b ? -1 : 1;
+                    }
+                    else {
+                        throw ("error");
+                    }
+                });
+                for (var i = 0; i < lessonTasks.length; i++) {
+                    var data = lessonTasks[i];
+                    if(data.status == 0){
+                        continue;
+                    }
+                    if(_studiedLessonTask.containsKey(data.lessonTaskId)){
+                        if (_electedCourseCredit.containsKey(data.courseId)) {
+                            _electedCourseCredit.put(data.courseId, _electedCourseCredit.get(data.courseId) + data.totalCredit);
+                        } else {
+                            _electedCourseCredit.put(data.courseId, data.totalCredit);
+                        }
+                    }else if ( !_studiedLessonTask.containsKey(data.lessonTaskId)
+                        && _electTurnResult.containsKey(data.lessonTaskId)
+                        && (_electTurnResult.get(data.lessonTaskId)['electStatus'] == 1
+                        || _electTurnResult.get(data.lessonTaskId)['electStatus'] == 2
+                        || _electTurnResult.get(data.lessonTaskId)['electStatus'] == 3
+                        || _electTurnResult.get(data.lessonTaskId)['electStatus'] == 4)){
+                        if (_electedCourseCredit.containsKey(data.courseId)) {
+                            _electedCourseCredit.put(data.courseId, _electedCourseCredit.get(data.courseId) + data.totalCredit);
+                        } else {
+                            _electedCourseCredit.put(data.courseId, data.totalCredit);
+                        }
+                    }
+                }
+                for (var i = 0; i < lessonTasks.length; i++) {
+                    var data = lessonTasks[i];
+                    if(_lessonTaskMap.containsKey(data.lessonTaskId)){
+                        continue;
+                    }
+                    _lessonTaskMap.put(data.lessonTaskId, data);
+                    var courseTypeId = data.courseType;
+                    if(_containCourseType.indexOf(courseTypeId) == -1){
+                        _containCourseType.push(courseTypeId);
+                    }
+                    if(_containTermId.indexOf(data.termId) == -1){
+                        _containTermId.push(data.termId);
+                        _termModels.put(data.termId,{
+                            termId:data.termId,
+                            termName:data.termName
+                        })
+                    }
+                    if (!_isReadonly) {
+                        if ((_electTurnResult.containsKey(data.lessonTaskId) && (_electTurnResult.get(data.lessonTaskId)['electStatus'] == 1
+                            || _electTurnResult.get(data.lessonTaskId)['electStatus'] == 2
+                            || _electTurnResult.get(data.lessonTaskId)['electStatus'] == 3
+                            || _electTurnResult.get(data.lessonTaskId)['electStatus'] == 4)
+                            ) || _studiedLessonTask.containsKey(data.lessonTaskId)) {
+                            if("1" == data.lessonType){
+                                if(_electedExperimentCourse.get(data.curriculumId) == null){
+                                    _electedExperimentCourse.put(data.curriculumId,[]);
+                                    _electedExperimentCourse.get(data.curriculumId).push(data);
+                                }else{
+                                    _electedExperimentCourse.get(data.curriculumId).push(data);
+                                }
+                            }else{
+                                var $courseTypePanel = _$this.find('.cart-page').find('div.cart-page-lessontask').find('.course-type-panel[coursetypeid="' + courseTypeId + '"]');
+                                if ($courseTypePanel.length == 0) {
+                                    $courseTypePanel = createCartCourseTypePanel(_courseTypeMap.get(courseTypeId));
+                                    _$this.find('.cart-page > .cart-page-lessontask ').append($courseTypePanel);
+                                }
+                                var $row = createCartRow(data);
+                                $courseTypePanel.find('.course-type-lesson-task').append($row);
+                            }
+                        }
+                    }
+                    if("1" == data.lessonType){
+                        if(_experimentCourse.get(data.curriculumId) == null){
+                            _experimentCourse.put(data.curriculumId,[]);
+                            _experimentCourse.get(data.curriculumId).push(data);
+                        }else{
+                            _experimentCourse.get(data.curriculumId).push(data);
+                        }
+                        continue;
+                    }
+                    var courseGroupId = data.courseGroupId;
+                    if(!_studiedLessonTask.containsKey(data.lessonTaskId)&& _electTurnResult.containsKey(data.lessonTaskId)){
+                        if (_electedCredit.containsKey(data.courseType)) {
+                            _electedCredit.put(data.courseType,_electedCredit.get(data.courseType) + data.totalCredit);
+                        } else {
+                            _electedCredit.put(data.courseType, data.totalCredit);
+                        }
+
+                        // if (_electedCourseCredit.containsKey(data.courseId)) {
+                        //     _electedCourseCredit.put(data.courseId, _electedCourseCredit.get(data.courseId) + data.totalCredit);
+                        // } else {
+                        //     _electedCourseCredit.put(data.courseId, data.totalCredit);
+                        // }
+                    }
+                    var $courseTypePanel = _$this.find('.main-page').find('.course-type-panel[coursetypeid="' + courseTypeId + '"]');
+                    if ($courseTypePanel.length == 0) {
+                        $courseTypePanel = createCourseTypePanel(_courseTypeMap.get(courseTypeId));
+                        _$this.find('.main-page').append($courseTypePanel);
+                    }
+                    var $row = createRow(data);
+                    if (courseGroupId && courseGroupId != "") {
+                        hasCourseGroup = true;
+                        var sameGroup = _$this.find('.main-page').find('.lesson-task[coursegroupid="' + courseGroupId + '"]:last');
+                        if (sameGroup.length > 0) {
+                            $row.insertAfter(sameGroup);
+                        } else {
+                            $courseTypePanel.find('.course-type-lesson-task').append(createGroupRow(_courseGroupMap.get(courseGroupId)));
+                            $courseTypePanel.find('.course-type-lesson-task').append($row);
+                        }
+                    } else {
+                        $courseTypePanel.find('.course-type-lesson-task').append($row);
+                    }
+
+                    //统计每个类型课程的选课学分信息、显示购物车的信息
+                    if (_electTurnResult.containsKey(data.lessonTaskId) && !_studiedLessonTask.containsKey(data.lessonTaskId)) {
+                        if ('0' == _electTurnResult.get(data.lessonTaskId).electStatus) {
+                            var currentCredit = 0;
+                            if (_electedCredit.containsKey(courseTypeId)) {
+                                currentCredit = _electedCredit.get(courseTypeId);
+                            }
+                            currentCredit += data.totalCredit;
+                            _electedCredit.put(courseTypeId, currentCredit);
+
+                            _electedCounter += 1;
+                        }
+                    }
+                }
+                statisticTotalCredit();
+                var totalElectedCredit = 0;
+                //显示课程类型的统计信息
+                var keys_courseType = _courseTypeMap.keys();
+                for (var i = 0; i < keys_courseType.length; i++) {
+                    var courseTypeId = keys_courseType[i];
+                    var electedCredit = _electedCredit.get(keys_courseType[i]);
+                    var studiedCredit = _studiedCredit.get(keys_courseType[i]);
+                    _$this.find('.main-page').find('.course-type-panel[coursetypeid="' + courseTypeId + '"]').find('.course-type-header').find('.electedCreditVal').text(electedCredit ? electedCredit : 0);
+                    _$this.find('.main-page').find('.course-type-panel[coursetypeid="' + courseTypeId + '"]').find('.course-type-header').find('.studiedCreditVal').text(studiedCredit ? studiedCredit : 0);
+
+                    if (electedCredit) {
+                        totalElectedCredit += electedCredit;
+                    }
+
+                    _$this.find('.cart-page > .cart-page-lessontask').find('.course-type-panel[coursetypeid="' + courseTypeId + '"]').find('.course-type-header').find('.electedCreditVal').text((electedCredit ? electedCredit : 0) + (studiedCredit ? studiedCredit : 0));
+                }
+
+                var studiedLessonTasks = _studiedLessonTask.values();
+                for (var i = 0; i < studiedLessonTasks.length; i++) {
+                    var lessonTaskId = studiedLessonTasks[i];
+                    var lessonTask = _lessonTaskMap.get(lessonTaskId);
+                    if (lessonTask == null || "1" == lessonTask.lessonType ) {
+                        continue;
+                    }
+                    var courseId = lessonTask.courseId;
+                    _$this.find('.main-page,.cart-page').find('div.lesson-task[lessontaskid!="' + lessonTaskId + '"][courseid="' + courseId + '"][lessonType="0"]').each(function(){
+                        var $div = $(this);
+                        if(!_studiedLessonTask.containsKey($div.attr('lessontaskid')) && !_electTurnResult.containsKey($div.attr('lessontaskid'))){
+                            if($div.attr('coursegroupid')){
+                                $div.find('input[type="checkbox"]').attr('disabled', 'disabled');
+                                $div.find('.lesson-task-group-section').append('<span class="lesson-task-status">'+Help.get_i18n('The same class elected')+'</span>');
+                            }else{
+                                $div.find('button').attr('disabled', 'disabled').removeClass('btn-info').addClass('btn-default').html(Help.get_i18n('The same class elected'));
+                            }
+                        }
+                    });
+                }
+                var electTurnResult = _electTurnResult.keys();
+                for (var i = 0; i < electTurnResult.length; i++) {
+                    var lessonTaskId = electTurnResult[i];
+                    var lessonTask = _lessonTaskMap.get(lessonTaskId);
+                    if (lessonTask == null || "1" == lessonTask.lessonType ) {
+                        continue;
+                    }
+                    var courseId = lessonTask.courseId;
+                    _$this.find('.main-page,.cart-page').find('div.lesson-task[lessontaskid!="' + lessonTaskId + '"][courseid="' + courseId + '"][lessonType="0"]').each(function(){
+                        var $div = $(this);
+                        if(!_studiedLessonTask.containsKey($div.attr('lessontaskid')) && !_electTurnResult.containsKey($div.attr('lessontaskid'))){
+                            if($div.attr('coursegroupid')){
+                                $div.find('input[type="checkbox"]').attr('disabled', 'disabled');
+                                $div.find('.lesson-task-group-section').append('<span class="lesson-task-status">'+Help.get_i18n('The same class elected')+'</span>');
+                            }else{
+                                $div.find('button').attr('disabled', 'disabled').removeClass('btn-info').addClass('btn-default').html(Help.get_i18n('The same class elected'));
+                            }
+                        }
+                    });
+                }
+                loadData();
+                rendererExperimentCourse();
+                rendererCourseGroup();
+
+                //每门课之间加分隔线
+                _$this.find('.main-page').find('.lesson-task[coursegroupid=""]').css('border-bottom', '1px solid #ddd');
+                var keys_courseGroup = _courseGroupMap.keys();
+                for (var i = 0; i < keys_courseGroup.length; i++) {
+                    var courseGroupId = keys_courseGroup[i];
+                    _$this.find('.main-page').find('.lesson-task[coursegroupid="' + courseGroupId + '"]:last').css('border-bottom', '1px solid #ddd');
+
+                    var $group_first = _$this.find('.main-page').find('.lesson-task[coursegroupid="' + courseGroupId + '"]:first');
+                    var $group_last = _$this.find('.main-page').find('.lesson-task[coursegroupid="' + courseGroupId + '"]:last');
+                    var $button = $group_first.find('.lesson-task-operation>button');
+
+                    if ($group_first.length > 0 && $group_last.length > 0) {
+                        var heightD = $group_last.position().top - $group_first.position().top;
+                        $button.css('top', (heightD / 2 - 16) + 'px');
+
+                        _$this.find('.main-page').find('[id="' + courseGroupId + '"]').find('.lesson-task-group').css('padding-right', '');
+
+                        var sameCourseGroupLessonTasks = [];
+                        _$this.find('.main-page').find('.lesson-task[coursegroupid="' + courseGroupId + '"]').each(function () {
+                            var $this = $(this);
+                            var lessonTask = _lessonTaskMap.get($this.attr('lessontaskid'));
+                            sameCourseGroupLessonTasks.push(lessonTask);
+                        });
+                        electText($button, sameCourseGroupLessonTasks);
+                    }
+                    var $divs = _$this.find('.main-page').find('div.lesson-task[coursegroupid="'+courseGroupId+'"]');
+                    if($divs.find('input[type="checkbox"][disabled!="disabled"]').length == 0){
+                        $divs.find('.lesson-task-status').remove();
+                        $divs.find('button').attr('disabled', 'disabled').removeClass('btn-info').addClass('btn-default').html(Help.get_i18n('The same class elected'));
+                    }
+                }
+                if (!_isReadonly) {
+                    _$this.find('.cart-page-link').show();
+                }
+                emptyCartTip();
+                rendererVacancy();
+            }
+        });
+    };
+
+    var functions = {
+        "do_elect": do_elect,
+        "de_elect": de_elect,
+        "undo_elect": undo_elect,
+        "notify_vacancy": notify_vacancy
+    };
+
+    var rendererAlarm = function ($element,endTime) {
+        (function ($element,endTime) {
+            var id = $element.parents('div.lesson-task').attr('lessontaskid'), startTime = new Date().getTime(),
+                endTime = new Date(endTime.replace(/-/g,'/')).getTime(),
+                alarm = new Alarm(startTime, endTime, function (second, minute, hour, day,self) { //计时钟
+                    if(parseInt(day) > 0){
+                        self.$element.text(Help.get_i18n("{day} day(s)").formatmodel({
+                            day: parseInt(day)
+                        }));
+                    }else if(parseFloat(hour) == 0
+                        && parseFloat(minute) == 0
+                        && parseFloat(second) == 0){
+                        refresh();
+                    }else{
+                        self.$element.text(hour + ':' + minute + ':' + second);
+                    }
+                }, function () {
+                },$element);
+            alarm.start();
+        })($element,endTime);
+        // addTimer($element,new Date(endTime).getTime());
+    };
+
+    /**
+     * 渲染购物车中实验课
+     * @param $input
+     * @param lessonTaskId
+     */
+    var rendererExperimentCourse = function() {
+        var curriculumIds =  _electedExperimentCourse.keys();
+        for(var c=0;c<curriculumIds.length;c++){
+            var curriculumId = curriculumIds[c];
+            var experimentCourses = _electedExperimentCourse.get(curriculumId);
+
+            var $rows  = _$this.find('.cart-page > .cart-page-lessontask').find('div.lesson-task[curriculumid="' + curriculumId + '"]');
+            for(var d=0;d<$rows.length;d++){
+                for(var e=0;e<experimentCourses.length;e++){
+                    var lessonTask =  experimentCourses[e];
+                    var courseTypeId = lessonTask['courseType'];
+                    var $courseTypePanel = _$this.find('.cart-page > .cart-page-lessontask').find('.course-type-panel[coursetypeid="' + courseTypeId + '"]');
+                    if ($courseTypePanel.length == 0) {
+                        $courseTypePanel = createCartCourseTypePanel(_courseTypeMap.get(courseTypeId));
+                        _$this.find('.cart-page > .cart-page-lessontask ').append($courseTypePanel);
+                    }
+                    var $row = createCartRow(lessonTask);
+                    $row.insertAfter($($rows[d]));
+                }
+            }
+
+            $rows  = _$this.find('.main-page').find('div.lesson-task[curriculumid="' + curriculumId + '"]');
+            for(var d=0;d<$rows.length;d++){
+                var regularLessonTask = $($rows[d]).data();
+                if(!_electTurnResult.containsKey(regularLessonTask['lessonTaskId']) && !_studiedLessonTask.containsKey(regularLessonTask['lessonTaskId'])){
+                    continue;
+                }
+                for(var e=0;e<experimentCourses.length;e++){
+                    var lessonTask =  experimentCourses[e];
+                    $($rows[d]).find('div.lesson-task-experiment').html('<p>'+lessonTask['lessonClassName']+'('+ Help.get_i18n("Experiment Course") +')</p>');
+                }
+            }
+        }
+    };
+    /**
+     * 渲染课程组的中选课按钮的信息
+     * @param $input
+     * @param lessonTaskId
+     */
+    var rendererCourseGroup = function() {
+        var electedLessonTasks = _electTurnResult.keys();
+        for(var e=0;e<electedLessonTasks.length;e++){
+            var lessonTask = _lessonTaskMap.get(electedLessonTasks[e]);
+            if(lessonTask != null && _electTurnResultDrop.get(lessonTask.lessonTaskId) == null && lessonTask['lessonType'] == 0){
+                if (lessonTask.courseGroupId != "") { // 如果已选课程设置有课程组,则修改显示课程组的中选课按钮的信息
+                    var $firstGroup = _$this.find('.main-page').find('.lesson-task[coursegroupid="' + lessonTask.courseGroupId + '"]:first');
+                    electText($firstGroup.find('.lesson-task-operation > button'), lessonTask);
+                }
+            }
+        }
+    };
+    /**
+     * 查询并渲染空位通知数据
+     */
+    var rendererVacancy = function () {
+        Request.get({
+            url: 'tpm/findAll_ElectClassNotifyVacancy.action',
+            data: {
+                jsonString: JSON.stringify({
+                    electTurnId: _electTurnId,
+                    studentId:__Session.userId,
+                    isClosed:"0"
+                })
+            },
+            callback: function (result) {
+                _$this.find('.main-page').find('div.lesson-task.lesson-task-vacancy').find('.lesson-task-operation > button').html(Help.get_i18n('Notify Vacancy')).prop('action', 'notify_vacancy');
+                var datas = result.data;
+                for(var d=0;d<datas.length;d++){
+                    var data = datas[d];
+                    if(_electTurnResult.containsKey(data.lessonTaskId) || _studiedLessonTask.containsKey(data.lessonTaskId)){
+                        continue;
+                    }
+                    _$this.find('.main-page').find('div.lesson-task.lesson-task-vacancy[lessontaskid="'+data['lessonTaskId']+'"]').find('.lesson-task-operation > button').prop('notifyvacancyid',data['notifyVacancyId']).html(Help.get_i18n('Cancel Notify')).prop('action', 'notify_vacancy').removeClass('btn-success').addClass('btn-primary');
+                }
+            }
+        });
+    };
+    /**
+     * 初始化页面元素事件及变量
+     */
+    var initEvent = function () {
+        _mentorApproveDrop = null;
+        _mentorApproveElect = null;
+        _conflictRatio = null;
+        _courseTypeMap.clear();
+        _courseGroupMap.clear();
+        _containCourseType = [];
+        _containTermId = [];
+        _courseTypeCreditMap.clear();
+        _singleCourseTypeCredit.clear();
+        _courseTypeLessonTask.clear();
+        _lessonTaskMap.clear();
+        _studiedLessonTask.clear();
+        _electTurnResult.clear();
+        _electedCredit.clear();
+        _electedTermCredit.clear();
+        _electedCourseCredit.clear();
+        _totalElectedCredit.clear();
+        _electedNum.clear();
+        hasCourseGroup = false;
+        _electTurnSetting = new Map();
+        _studiedCredit.clear();
+        _isOpen = false;
+        _electedCounter = 0;
+        _lcc = false;
+        _prerequisiteCourse.clear();
+        _prerequisiteProfession = false;
+        _prerequisiteExempt.clear();
+        _studentObtainedCredit.clear();
+        _studentScore.clear();
+        _experimentCourse.clear();
+        _electedExperimentCourse.clear();
+        _lessonCalendar.clear();
+        _lessonCalendarConflict.clear();
+        _termCredit.clear();
+        _termModels.clear();
+        _studiedTermCredit.clear();
+        _studiedTermCredit_tmp.clear();
+
+        _optionMap = new Map();
+        _optionMap.put('obtainedCredit',Help.get_i18n('Obtained Credit'));
+        _optionMap.put('electedCredit',Help.get_i18n('Elected Credit'));
+        _optionMap.put('grade',Help.get_i18n('Score'));
+
+        _$this.find('.cart-page').css('height',  __ModuleHeight()-100+'px');
+        _$this.find('.cart-page-link').css('top',  __ModuleHeight()/2+'px');
+
+        if(!getKeyElement('courseTypeCreditRestrain')){
+            _$this.find('.cart-page').find('div.cart-page-course-type-credit-restrain').remove();
+        }
+        if(!getKeyElement('termCreditRestrain')){
+            _$this.find('.cart-page').find('div.cart-page-term-credit-restrain').remove();
+        }
+
+        _$this.find('div.refresh').on('click', function () {
+            if(!$(this).hasClass('disabled')){
+                refresh();
+                $(this).addClass('disabled');
+            }
+        });
+        _$this.find('div.refresh').al_popover({
+            placement: 'bottom',
+            container: 'body',
+            trigger: 'hover',
+            html: true,
+            content:function(){
+                var $span = $('<span>'+Help.get_i18n('Refresh Data')+'</span>');
+                return $span;
+            }
+        });
+        _$this.find('div.elect-turn-detail-view').al_popover({
+            placement: 'bottom',
+            container: 'body',
+            trigger: 'hover',
+            html: true,
+            content:function(){
+                var $span = $('<span>'+Help.get_i18n('Elect Class Explanation')+'</span>');
+                return $span;
+            }
+        });
+        _$this.find('.user-name').html(__Session.userName+"<br/>");
+        _$this.find('div.elect-turn-detail-view').on('click', function () {
+            $.al_modal({
+                size: 'modal-lg',
+                title: Help.get_i18n('Elect Class Explanation'),
+                autoHide: false,
+                btnCancelText: Help.get_i18n('Close'),
+                showBtnCancel: true,
+                showBtnConfirm: false,
+                content: function ($modal) {
+                    $modal.find('.modal-body').load('front/app/electClass/electTurn/electTurnDetail.jsp?electTurnId=' + _electTurnId);
+                }
+            });
+        });
+        _$this.find('.virtual-calendar-view').al_popover({
+            placement: 'bottom',
+            container: 'body',
+            trigger: 'hover',
+            html: true,
+            content:function(){
+                var $span = $('<span>'+Help.get_i18n('Virtual Calendar')+'</span>');
+                return $span;
+            }
+        });
+        _$this.find('div.virtual-calendar-view').on('click', function () {
+            var removeLessonTaskIds = [];
+            var lessonTaskIds = [];
+            var dropLessonTaskIds = _electTurnResultDrop.keys();
+            for(var d=0;d<dropLessonTaskIds.length;d++){
+                var electTurnResultDrop = _electTurnResultDrop.get(dropLessonTaskIds[d]);
+                if(electTurnResultDrop!= null && electTurnResultDrop['electStatus']== 1){
+                    removeLessonTaskIds.push(dropLessonTaskIds[d]);
+                }
+            }
+            var studiedLessonTaskIds = _studiedLessonTask.keys();
+            for(var s=0;s<studiedLessonTaskIds.length;s++){
+                var electTurnResultDrop = _electTurnResultDrop.get(studiedLessonTaskIds[s]);
+                if(electTurnResultDrop == null || electTurnResultDrop['electStatus'] != 1){
+                    lessonTaskIds.push(studiedLessonTaskIds[s]);
+                }
+            }
+            __ActiveModule('Teaching_Student_VirtualCalendar',Help.get_i18n("Virtual Calendar"), 'electClass/virtualCalendar/virtualCalendar?lessonTaskIds=' + JSON.stringify(lessonTaskIds)+"&removeLessonTaskIds="+JSON.stringify(removeLessonTaskIds), true);
+        });
+        _$this.find('.public-course-calendar-view').al_popover({
+            placement: 'bottom',
+            container: 'body',
+            trigger: 'hover',
+            html: true,
+            content:function(){
+                var $span = $('<span>'+Help.get_i18n('Public Course Schedule')+'</span>');
+                return $span;
+            }
+        });
+        _$this.find('.public-course-calendar-view').on('click', function () {
+            __ActiveModule({
+                menuId:'PublicCourseSchedule',
+                caption:Help.get_i18n('Public Course Schedule'),
+                url:'electClass/publicCourseSchedule/publicCourseSchedule',
+                showRefresh:false,
+                showClose:true,
+                reload:true
+            });
+        });
+        _$this.find('a.continue-elect').on('click', function () {
+            _$this.find('.cart-page-link').trigger('click');
+        });
+        _$this.find('.cart-page-link').on('click', function () {
+            if (_isOpening) {
+                return false;
+            } else {
+                _isOpening = true;
+            }
+            _$this.find('.cart-page').addClass('moving');
+            _$this.find('.cart-page').show();
+            if (!_isOpen) {
+                _isOpen = true;
+                var left = _$this.find('.main-page').offset().left;
+                _$this.find('.car-page-dire').html('<i class="fa fa-arrow-right"></i>');
+                var scrollTop = $(document).scrollTop();
+                if (scrollTop == 0) {
+                    _$this.find('.cart-page').css('top', '185px');
+                } else if (scrollTop > 50 && scrollTop <= 145) {
+                    _$this.find('.cart-page').css('top', 100 - $(document).scrollTop() + 72 + 'px');
+                } else {
+                    _$this.find('.cart-page').css('top', '115px');
+                }
+                _$this.find('.cart-page').animate({left: left + 'px', opacity: 1}, function () {
+                    _$this.find('.main-page').hide();
+                    _$this.find('.cart-page').removeClass('moving');
+                    _isOpening = false;
+                });
+            } else {
+                _isOpen = false;
+                _$this.find('.main-page').show();
+                var scrollTop = $(document).scrollTop();
+                if (scrollTop == 0) {
+                    _$this.find('.cart-page').css('top', '185px');
+                } else if (scrollTop > 50 && scrollTop <= 145) {
+                    _$this.find('.cart-page').css('top', 100 - $(document).scrollTop() + 72 +  'px');
+                } else {
+                    _$this.find('.cart-page').css('top', '115px');
+                }
+                _$this.find('.cart-page').animate({left: "100%", opacity: 1}, function () {
+                    _$this.find('.cart-page').removeClass('moving');
+                    _$this.find('.cart-page').hide();
+                    _isOpening = false;
+                });
+
+                _$this.find('.car-page-dire').html('<i class="fa fa-arrow-left"></i>');
+            }
+        });
+
+        if (_isReadonly == true) {
+            _$this.find('.cart-page-link').hide();
+        }
+
+    };
+    /**
+     * 获取配置文件是否有信息需要显示
+     * @param keyElment
+     */
+    var getKeyElement = function (keyElement) {
+        if(config.keyElements.hasOwnProperty(keyElement) && config.keyElements[keyElement] == true){
+            return true;
+        }
+        return false;
+    };
+    return {
+        view: function () {
+            return html;
+        },
+        init: function ($this, params) {
+            _$this = $this;
+            _params = params;
+            _electTurnId = params.electTurnId;
+            _isReadonly = params.isReadonly ? Boolean(params.isReadonly) : false;
+            initEvent();
+            initCourseTypeColor();
+            loadLessonTask();
+        },
+        refresh: function () {
+            refresh();
+        }
+    }
+});

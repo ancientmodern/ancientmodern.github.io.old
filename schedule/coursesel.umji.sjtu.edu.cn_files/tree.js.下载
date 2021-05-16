@@ -1,0 +1,592 @@
+//# sourceURL=tree.js
+(function (factory) {
+	if (typeof define === "function" && define.amd) {
+		define(["jquery", "css!/front/plugins/tree/tree.css"], factory);
+	} else {
+		var link = document.createElement('link');
+		link.rel = "stylesheet"
+		link.async = false;
+		link.href = 'front/plugins/tree/tree.css';
+		document.getElementsByTagName('head')[0].appendChild(link);
+
+		factory(jQuery);
+	}
+}
+
+(function ($) {
+
+	var DataSourceTree = function (options) {
+		this.beforeLoad = options.beforeLoad;
+		this.afterLoad = options.afterLoad;
+		this.url = options.url;
+		this.async = options.async;
+		this._data = options.data;
+		this._delay = options.delay;
+	}
+	DataSourceTree.prototype.url = null;
+	DataSourceTree.prototype.async = false;
+	DataSourceTree.prototype.loadSyncData = function (parentId) {
+		var self = this;
+		if (this.url == null) {
+			return null;
+		} else {
+			var treeData = null;
+			$.ajax({
+				method: 'GET',
+				url: this.url,
+				async: false,
+				data: {
+					parentId: parentId,
+					jsonString: JSON.stringify($.extend({}, this.beforeLoad && (typeof this.beforeLoad == 'function') ? this.beforeLoad() : {}))
+				},
+				dataType: 'json',
+				success: function (jsonString) {
+					treeData = jsonString;
+				},
+				error: function () {
+					treeData = null;
+				}
+			});
+			this._data = treeData;
+			return treeData;
+		}
+	};
+	DataSourceTree.prototype.loadAsyncData = function (filter, callback) {  //�����첽����
+		var self = this;
+		var filterData = filter;
+		delete filterData.children;
+		if (this.url == null) {
+			return null;
+		} else {
+			$.ajax({
+				url: this.url,
+				data: {
+					parentId: filter.id,
+					jsonString: JSON.stringify($.extend(filterData, this.beforeLoad && (typeof this.beforeLoad == 'function') ? this.beforeLoad() : {}))
+				},
+				dataType: 'json',
+				success: function (jsonString) {
+					var data = jsonString;
+					callback({data: data});
+					if(self.afterLoad && (typeof self.afterLoad == 'function')){
+						self.afterLoad(data);
+					}
+				},
+				error: function () {
+				}
+			});
+		}
+	};
+	DataSourceTree.prototype.loadFirstNodeData = function (parentId) {  //����һ���ڵ�����
+		var self = this;
+		if (this.url == null) {
+			return null;
+		} else {
+			var treeData = null;
+			$.ajax({
+				url: this.url,
+				async: false,
+				data: {
+					parentId: parentId,
+					jsonString: JSON.stringify($.extend({}, this.beforeLoad && (typeof this.beforeLoad == 'function') ? this.beforeLoad() : {}))
+				},
+				dataType: 'json',
+				success: function (jsonString) {
+					treeData = jsonString;
+				},
+				error: function () {
+					treeData = null;
+				}
+			});
+			if (this.async == false) {
+				this._data = treeData;
+			}
+			return treeData;
+		}
+	};
+	DataSourceTree.prototype.loadData = function (options, callback) {
+		var self = this;
+		var $data = null;
+		if (!("text" in options) && !("leaf" in options)) {  //加载根节点的children数据
+			$data = this.async ? this.loadFirstNodeData("-1") : this.loadSyncData("-1");
+			if(self.afterLoad && (typeof self.afterLoad == 'function')){
+				self.afterLoad($data);
+			}
+			if ($data != null) {
+				callback({data: $data});
+				return;
+			}
+		} else if ("leaf" in options && options.leaf == false) {
+			var parentId = options.id;
+			if (this.async == false) {
+				if ("children" in options)
+					$data = options.children;
+				else $data = {}
+
+				if(self.afterLoad && (typeof self.afterLoad == 'function')){
+					self.afterLoad($data);
+				}
+				if ($data != null)
+					setTimeout(function () {
+						callback({data: $data});
+					}, parseInt(Math.random() * 500) + 200);
+			} else {
+				this.loadAsyncData(options, callback);
+			}
+		}
+	};
+
+	var Tree = function (element, options) {
+
+		options.dataSource = new DataSourceTree({
+			url: options.url,
+			async: options.async,
+			beforeLoad: options.beforeLoad,
+			afterLoad: options.afterLoad
+		});
+
+		this.$element = $(element);
+		this.options = $.extend({}, $.fn.tree.defaults, options);
+		this.$element.on('click', '.tree-item',$.proxy(function (ev, isClick) {
+			this.selectItem(ev.currentTarget, isClick);
+		}, this));
+
+		this.$element.on('click', '.' + options['open-icon'], $.proxy(function (ev) {
+			this.selectFolder($(ev.currentTarget).parent()[0]);
+			ev.stopPropagation();
+		}, this));
+		this.$element.on('click', '.' + options['close-icon'], $.proxy(function (ev) {
+			this.selectFolder($(ev.currentTarget).parent()[0]);
+			ev.stopPropagation();
+		}, this));
+		this.$element.on('click', '.tree-folder-header', $.proxy(function (ev, isClick) {
+			this.selectedFolder(ev.currentTarget, isClick);
+			ev.stopPropagation();
+		}, this));
+
+		this.render();
+
+		if (options.expandRoot) {
+			var firstTreeFolder = this.$element.children('.tree-folder:first').siblings('.tree-folder:first');
+			if(firstTreeFolder.length  > 0){
+				firstTreeFolder.find("." + options['close-icon'] + ':first').trigger('click');
+			}
+		}
+	};
+
+	Tree.prototype = {
+		constructor: Tree,
+
+		render: function () {
+			this.populate(this.$element);
+		},
+
+		populate: function ($el) {
+			var self = this;
+			var loader = $el.parent().find('.tree-loader:eq(0)');
+
+			loader.show();
+			self.options.dataSource.loadData($el.data(), function (items) {
+				loader.hide();
+				if (!("text" in $el.data()) && !("leaf" in $el.data())) {  //加载根节点的children数据
+					if(self.options.extendData){
+						var data = items.data;
+						data = data.concat(self.options.extendData);
+						items.data = data;
+					}
+				}
+				self.rendererData(items,$el);
+			});
+		},
+		rendererData:function(items,$el){
+			var self = this;
+			var nBarOpt = self.options.nodeBar;
+
+			$.each(items.data, function (index, value) {
+				var $entity;
+
+				var $nBarFolder = $("<div class='tree-node-bar'></div>");
+				if (nBarOpt.add != false && typeof nBarOpt.add == 'object'){
+					if (nBarOpt.add.excludeFolder != true){
+						$nBarFolder.append("<i class='fa fa-plus flag-add'></i>");
+					}
+				}
+				if (nBarOpt.modify != false && typeof nBarOpt.modify == 'object'){
+					if (nBarOpt.modify.excludeFolder != true) {
+						$nBarFolder.append("<i class='fa fa-edit flag-modify'></i>");
+					}
+				}
+				if (nBarOpt.remove != false && typeof nBarOpt.remove == 'object'){
+					if (nBarOpt.remove.excludeFolder != true) {
+						$nBarFolder.append("<i class='fa fa-minus flag-remove'></i>");
+					}
+				}
+				var $nBarLeaf = $("<div class='tree-node-bar'></div>");
+				if (nBarOpt.add != false && typeof nBarOpt.add == 'object'){
+					$nBarLeaf.append("<i class='fa fa-plus flag-add'></i>");
+				}
+				if (nBarOpt.modify != false && typeof nBarOpt.modify == 'object'){
+					$nBarLeaf.append("<i class='fa fa-edit  flag-modify'></i>");
+				}
+				if (nBarOpt.remove != false && typeof nBarOpt.remove == 'object'){
+					$nBarLeaf.append("<i class='fa fa-minus flag-remove'></i>");
+				}
+
+				if (value.leaf === false) {
+					$entity = self.$element.find('.tree-folder:eq(0)').clone().show();
+					if(value.parentId == '-1' || value.parentId == ""){
+						$entity.find('.tree-folder-name').html((self.options.multiSelect ? "<i class='fa fa-square-o'></i> " : "") +value.text);
+					}else{
+						$entity.find('.tree-folder-name').html("<i class='fa fa-square-o'></i> " + value.text);
+					}
+					$entity.find('.tree-folder-name').after($nBarFolder);
+					$entity.find('.tree-loader').html(self.options.loadingHTML);
+					var header = $entity.find('.tree-folder-header');
+					header.data(value);
+					header.attr('id',value.id);
+					if ('icon-class' in value) {
+						header.find('[class*="icon-"]').addClass(value['icon-class']);
+					}
+				} else if (value.leaf === true) {
+					$entity = self.$element.find('.tree-item:eq(0)').clone().show();
+					$entity.find('.tree-item-name').html(value.text);
+					$entity.find('.tree-item-name').after($nBarLeaf);
+					$entity.data(value);
+					$entity.attr('id',value.id);
+				}
+				if ($el.hasClass('tree-folder-header')) {
+					$el.parent().find('.tree-folder-content:eq(0)').append($entity);
+				} else {
+					$el.append($entity);
+				}
+
+				if($el.hasClass('folder-selected') && self.$element.find('#tree-cascade')[0].checked){
+					if($entity.hasClass('tree-folder')){
+						$entity.find('.tree-folder-name').parent().children('div:first').children('i').
+						removeClass(self.options['unselected-icon']).addClass(self.options['selected-icon']);
+						$entity.find('.tree-folder-name').parent().addClass('folder-selected');
+					}else if($entity.hasClass('tree-item')){
+						$entity.children('i').removeClass(self.options['unselected-icon']).addClass(self.options['selected-icon']);
+						$entity.addClass('tree-selected');
+					}
+				}
+
+				if ($entity.find('i.flag-add').length>0 ){
+					$entity.find('i.flag-add').on('click', {nodeData:value},  function(e){
+						e.stopPropagation();
+						nBarOpt.add.fn.call(this, e.data.nodeData);
+					});
+				}
+				if ($entity.find('i.flag-modify').length>0 ){
+					$entity.find('i.flag-modify').on('click',{nodeData:value}, function(e){
+						e.stopPropagation();
+						nBarOpt.modify.fn.call(this, e.data.nodeData);
+					});
+				}
+				if ($entity.find('i.flag-remove').length>0 ){
+					$entity.find('i.flag-remove').on('click',{nodeData:value}, function(e){
+						e.stopPropagation();
+						nBarOpt.remove.fn.call(this, e.data.nodeData);
+					});
+				}
+			});
+			self.$element.trigger('loaded', [items, $el.data()]);  //触法自定义loaded事件
+		},
+		addNode : function(nodeData){
+			/*var nBarOpt = this.options.nodeBar;
+			 this.options.addNodeFn.call(this,nodeData);
+			 nBarOpt.add.fn.call(this, nodeData);*/
+
+
+
+			if (this.options.addNodeFn && typeof this.options.addNodeFn === 'function') {
+
+				this.options.addNodeFn.call(this, {}, this.selectedItems());
+			}
+
+
+		},
+		modifyNode : function(nodeData){
+			var self = this;
+			var nBarOpt = self.options.nodeBar;
+			nBarOpt.modify.fn.call(this,nodeData);
+		},
+		removeNode : function(nodeData){
+			var self = this;
+			var nBarOpt = self.options.nodeBar;
+			nBarOpt.remove.fn(nodeData);
+		},
+		selectItem: function (el, isClick) {
+			if (this.options['selectable'] == false) return;
+			var $el = $(el);
+			var $all = this.$element.find('.folder-selected,.tree-selected');
+			var data = [];
+
+			if (this.options.multiSelect) {
+				$.each($all, function (index, value) {
+					var $val = $(value);
+					if ($val[0] !== $el[0]) {
+						data.push($(value).data());
+					}
+				});
+			} else if ($all[0] !== $el[0]) {
+                if($all.hasClass('tree-selected')){
+                    $all.children('i').removeClass(this.options['selected-icon']).addClass(this.options['unselected-icon']);
+                }else if($all.hasClass('folder-selected')){
+                    $all.find('.tree-folder-name').children('i').removeClass(this.options['selected-icon']).addClass(this.options['unselected-icon']);
+                }
+                $all.removeClass('folder-selected').removeClass('tree-selected');
+				data.push($el.data());
+			}
+
+			if ($el.hasClass('tree-selected')) {
+				$el.removeClass('tree-selected');
+				$el.children('i').removeClass(this.options['selected-icon']).addClass(this.options['unselected-icon']);
+
+				var folders = $el.parents().prev('.tree-folder-header');
+				for(var i = 0; i< folders.length;i++){
+					var item = folders[i];
+					$(item).removeClass('folder-selected');
+					$(item).children('div:first').children('i').removeClass(this.options['selected-icon']).addClass(this.options['unselected-icon']);
+				}
+
+			} else {
+				$el.addClass ('tree-selected');
+				$el.children('i').removeClass(this.options['unselected-icon']).addClass(this.options['selected-icon']);
+				if (this.options.multiSelect) {
+					data.push($el.data());
+				}
+			}
+			if (data.length) {
+				this.$element.trigger('selected', {info: data});
+			}
+
+			if (isClick != false) {
+				if (this.options.nodeClick && typeof this.options.nodeClick === 'function') {
+					var nodeData = $el.data();
+					this.options.nodeClick.call(this, nodeData, this.selectedItems());
+				}
+			}
+		},
+		selectFolder: function (el) {
+			var $el = $(el);
+			var $par = $el.parent();
+			if ($el.find('.' + this.options['close-icon']).length) {
+				if ($par.find('.tree-folder-content').children().length) {
+					$par.find('.tree-folder-content:eq(0)').show();
+				} else {
+					this.populate($el);
+				}
+				$par.find('.' + this.options['close-icon'] + ':eq(0)')
+					.removeClass(this.options['close-icon'])
+					.addClass(this.options['open-icon']);
+				// this.$element.trigger('opened', $el.data());
+			} else {
+				if (this.options.cacheItems) {
+					$par.find('.tree-folder-content:eq(0)').hide();
+				} else {
+					$par.find('.tree-folder-content:eq(0)').empty();
+				}
+				$par.find('.' + this.options['open-icon'] + ':eq(0)')
+					.removeClass(this.options['open-icon'])
+					.addClass(this.options['close-icon']);
+
+				this.$element.trigger('closed', $el.data());
+			}
+		},
+		selectedFolder: function (el, isClick) {
+			var $el = $(el);
+			if (this.options.multiSelect) {
+				if ($el.hasClass('folder-selected')) {
+					$el.removeClass('folder-selected');
+					$el.children('div:first').children('i').removeClass(this.options['selected-icon']).addClass(this.options['unselected-icon']);
+
+					var folders = $el.parents().prev('.tree-folder-header');
+					for(var i = 0; i< folders.length;i++){
+						var item = folders[i];
+						$(item).removeClass('folder-selected');
+						$(item).children('div:first').children('i').removeClass(this.options['selected-icon']).addClass(this.options['unselected-icon']);
+					}
+
+					if(this.$element.find('#tree-cascade')[0].checked){
+						$el.siblings('.tree-folder-content').find('.tree-item').each(function (index, item) {
+							if ($(item).hasClass('tree-selected')) {
+								$(item).trigger('click', false);
+							}
+						});
+						$el.siblings('.tree-folder-content').find('.tree-folder-header').each(function (index, item) {
+							if ($(item).hasClass('folder-selected')) {
+								$(item).find('.tree-folder-name').trigger('click', false);
+							}
+						});
+					}
+				} else {
+					$el.addClass('folder-selected');
+					$el.children('div:first').children('i').removeClass(this.options['unselected-icon']).addClass(this.options['selected-icon']);
+
+					if(this.$element.find('#tree-cascade')[0].checked) {
+						$el.siblings('.tree-folder-content').find('.tree-item').each(function (index, item) {
+							if (!$(item).hasClass('tree-selected')) {
+								$(item).trigger('click', false);
+							}
+						});
+						$el.siblings('.tree-folder-content').find('.tree-folder-header').each(function (index, item) {
+							if (!$(item).hasClass('folder-selected')) {
+								$(item).find('.tree-folder-name').trigger('click', false);
+							}
+						});
+					}
+				}
+			}else{
+				if (this.options['selectable'] == false) return;
+				var $el = $(el);
+				var $all = this.$element.find('.folder-selected,.tree-selected');
+				var data = [];
+				if (this.options.multiSelect) {
+					$.each($all, function (index, value) {
+						var $val = $(value);
+						if ($val[0] !== $el[0]) {
+							data.push($(value).data());
+						}
+					});
+				} else if ($all[0] !== $el[0]) {
+					if($all.hasClass('tree-selected')){
+						$all.children('i').removeClass(this.options['selected-icon']).addClass(this.options['unselected-icon']);
+					}else if($all.hasClass('folder-selected')){
+						$all.find('.tree-folder-name').children('i').removeClass(this.options['selected-icon']).addClass(this.options['unselected-icon']);
+					}
+					$all.removeClass('folder-selected').removeClass('tree-selected');
+				}
+				if($el.hasClass('folder-selected')){
+					$el.removeClass('folder-selected');
+					$el.children('div:first').children('i').addClass(this.options['unselected-icon']).removeClass(this.options['selected-icon']);
+				}else{
+					$el.addClass('folder-selected');
+					$el.children('div:first').children('i').removeClass(this.options['unselected-icon']).addClass(this.options['selected-icon']);
+					data.push($el.data());
+				}
+				if (data.length) {
+					this.$element.trigger('selected', {info: data});
+				}
+			}
+			if (isClick != false) {
+				if (this.options.nodeClick && typeof this.options.nodeClick === 'function') {
+					var nodeData = $.extend({}, $el.data());
+					delete nodeData.children;
+					this.options.nodeClick.call(this, nodeData, this.selectedItems());
+				}
+			}
+		},
+		selectedItems: function () {
+			var $sel = this.$element.find('.tree-selected');
+			var $folderSelected = this.$element.find('.folder-selected');
+			var data = [];
+			var casecade = this.$element.find('#tree-cascade')[0].checked;
+
+			$.each($sel, function (index, value) {
+				data.push($(value).data());
+			});
+			$.each($folderSelected, function (index, item) {
+				var nodeData = $.extend({}, $(item).data());
+				if(!casecade){
+					delete nodeData['children'];
+				}
+				data.push(nodeData);
+			});
+			return data;
+		},
+		refresh:function(){
+			this.$element.children(':gt(2)').remove();
+			this.render();
+			var options = this.options;
+			if (options.expandRoot) {
+				var firstTreeFolder = this.$element.children('.tree-folder:first').siblings('.tree-folder:first');
+				if(firstTreeFolder.length  > 0){
+					firstTreeFolder.find("." + options['close-icon'] + ':first').trigger('click');
+				}
+			}
+		},
+		treeWidth: function () {
+			var self = this;
+
+			$('.tree-folder:visible').each(function (index, item) {
+
+			});
+		}
+	};
+
+	// TREE PLUGIN DEFINITION
+	$.fn.tree = function (option, value) {
+		var methodReturn;
+
+		var $set = this.each(function () {
+			var $this = $(this);
+			var data = $this.data('tree');
+			var options = typeof option === 'object' && option;
+
+			if (!data) $this.data('tree', (data = new Tree(this, options)));
+			if (typeof option === 'string') methodReturn = data[option](value);
+
+		});
+
+		return (methodReturn === undefined) ? $set : methodReturn;
+	};
+
+	$.fn.tree.defaults = {
+		multiSelect: false,
+		loadingHTML: '<div class="tree-loading"><i class="fa fa-refresh fa-spin"></i></div>',
+		cacheItems: true,
+		nodeBar: {
+			add:false,
+			modify:false,
+			remove:false,
+			ext:[]
+		}
+	};
+
+	$.fn.tree.Constructor = Tree;
+
+	//Deprecated
+	$.fn.al_tree = function (options) {
+
+		var $options = {
+			'open-icon': 'fa-minus-square-o',
+			'close-icon': 'fa-plus-square-o',
+			'selectable': true,
+			'selected-icon': 'fa-check-square-o',
+			'unselected-icon': 'fa-square-o',
+			expandRoot: true
+		};
+		$options = $.extend({}, $options, options);
+		this.each(function () {
+			var $this = $(this);
+
+			$this.append('<div id="cascade" style="margin-left: -9px;display: none;"><label><input type="checkbox" id="tree-cascade" checked="checked"> '+Help.get_i18n('Cascade Selection')+"</label></div>");
+
+			if(options.multiSelect == true){
+				$this.find('#cascade').show();
+			}else{
+				$this.find('#tree-cascade')[0].checked = false;
+			}
+			$this.append('<div class = "tree-folder" style="display:none;">\
+                            <div class="tree-folder-header">\
+                                <i class="fa ' + $options['close-icon'] + '"></i>\
+                                <div class="tree-folder-name"></div>\
+                            </div>\
+                            <div class="tree-folder-content"></div>\
+                            <div class="tree-loader" style="display:none"></div>\
+                        </div>\
+                        <div class="tree-item" style="display:none;">\
+                            ' + ($options['unselected-icon'] == null ? '' : '<i class="fa ' + $options['unselected-icon'] + '"></i>') + '\
+                            <div class="tree-item-name"></div>\
+                        </div>');
+			$this.addClass($options['selectable'] == true ? 'tree-selectable' : 'tree-unselectable');
+			$this.addClass('tree');
+			$this.tree($options);
+		});
+		return this.data('tree');
+	}
+
+	$.fn.aTree = $.fn.al_tree;
+
+}));

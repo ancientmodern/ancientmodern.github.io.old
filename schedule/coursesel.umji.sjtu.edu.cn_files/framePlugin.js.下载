@@ -1,0 +1,70 @@
+define(['css!/front/app/frame/framePlugin.css'],function(){
+    return {
+        init: function () {
+
+            $('#btnTopMessage').css('display','none');
+            $('#btnTopSchedule').css('display','none');
+            $('#me-menu>li').css('display','none');
+            $('#me-menu>li>a.logout').parent().css('display','block');
+            $('#sidebar>ul').addClass('gray-bg');
+            _headerHeight = 72;
+
+            if (__Session.userRole.indexOf('STUDENT')>=0){
+                $('#sidebar.sidebar-min .ul-logo .img').addClass('student');
+                $('.module-container-wrap').find('li > a.nav-left-bar-backward').remove();
+                $('.module-container-wrap').find('li > a.nav-right-bar-forward').remove();
+                $('.header').addClass('student');
+            }else{
+                $('#sidebar').removeClass('sidebar-min');
+                $('.body-container').removeClass('sidebar-min');
+            }
+        },
+        loadHome : function(){
+            if (__Session.userRole.indexOf('STUDENT')>=0){
+                var menuId = "home";
+                var caption = Help.get_i18n('Workbench');
+                var url = "student/home/home";
+                Request.ajax({
+                    async:false,
+                    url: 'jdji/tpm/isExistsStudentElectTurns_JiElectTurn.action',
+                    success: function (result) {
+                        if(result.success){
+                            menuId = "Teaching_Student_ElectTurn";
+                            caption = Help.get_i18n('Student Electives');
+                            url = "electClass/electTurn/electTurn";
+                        }
+                    }
+                });
+                __ActiveModule({
+                    menuId:menuId,
+                    caption:caption,
+                    url:url,
+                    showRefresh:true,
+                    showClose:false
+                });
+            }else if (__Session.userRole.indexOf('MENTOR')>=0){
+                var menuId = "Teaching_SelectElectives_mentor_approve";
+                var caption = Help.get_i18n("Approve Electives");
+                var url = "electClassMentor/electClassMentor";
+                __ActiveModule({
+                    menuId:menuId,
+                    caption:caption,
+                    url:url,
+                    showRefresh:true,
+                    showClose:false
+                });
+            }else if (__Session.userRole.indexOf('ADMIN')>=0 || __Session.userRole.indexOf('TEACHER')>=0){
+                var menuId = "Teaching_Manager_ElectTurn";
+                var caption = Help.get_i18n("Elect Turn");
+                var url = "electClassManager/electTurn";
+                __ActiveModule({
+                    menuId:menuId,
+                    caption:caption,
+                    url:url,
+                    showRefresh:true,
+                    showClose:false
+                });
+            }
+        }
+    };
+});
