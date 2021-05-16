@@ -1,3 +1,9 @@
+---
+layout: page
+title: VPN Manual
+permalink: /vpn/manual/
+---
+
 # A Simple Manual for SometimesNaive
 
 ## Backgrounds
